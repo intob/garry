@@ -101,7 +101,7 @@ func (app *App) handleRequest(w http.ResponseWriter, r *http.Request) {
 		defer app.davemu.Unlock()
 		result := make([]byte, 0)
 		datchan := getFile(app.dave, app.work, head)
-		t := time.After(time.Second)
+		t := time.After(10 * time.Second)
 		var tag []byte
 		for {
 			select {
