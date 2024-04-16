@@ -24,7 +24,7 @@ type App struct {
 	tlsKey   string
 	version  string
 	started  time.Time
-	clientMu sync.Mutex
+	clientmu sync.Mutex
 	clients  map[string]*client
 }
 
@@ -40,8 +40,8 @@ type Cfg struct {
 }
 
 type client struct {
-	limiter  *rate.Limiter
-	lastSeen time.Time
+	lim  *rate.Limiter
+	seen time.Time
 }
 
 func RunApp(cfg *Cfg) {
@@ -100,13 +100,25 @@ func (app *App) handleRequest(w http.ResponseWriter, r *http.Request) {
 		app.davemu.Lock()
 		defer app.davemu.Unlock()
 		result := make([]byte, 0)
-		fch := getFile(app.dave, app.work, head)
+		datchan := getFile(app.dave, app.work, head)
 		t := time.After(time.Second)
+		var tag []byte
 		for {
 			select {
-			case dat, ok := <-fch:
-				result = append(dat, result...)
-				if !ok {
+			case dat, ok := <-datchan:
+				if dat != nil {
+					result = append(dat.Val, result...)
+					if tag == nil && dat.Tag != nil {
+						tag = dat.Tag
+					}
+				} else if !ok {
+					if len(result) == 0 {
+						w.WriteHeader(404)
+						return
+					}
+					if tag != nil {
+						w.Header().Set("Content-Type", string(tag))
+					}
 					w.Write(result)
 					return
 				}
@@ -118,8 +130,8 @@ func (app *App) handleRequest(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getFile(d *godave.Dave, work int, head []byte) <-chan []byte {
-	out := make(chan []byte)
+func getFile(d *godave.Dave, work int, head []byte) <-chan *godave.Dat {
+	out := make(chan *godave.Dat)
 	go func() {
 	init:
 		for {
@@ -140,7 +152,7 @@ func getFile(d *godave.Dave, work int, head []byte) <-chan []byte {
 						close(out)
 						return
 					}
-					out <- m.Val
+					out <- &godave.Dat{Prev: m.Prev, Val: m.Val, Tag: m.Tag, Nonce: m.Nonce}
 					head = m.Prev
 					i++
 					fmt.Printf("GOT DAT %d PREV::%x\n", i, head)
@@ -155,7 +167,6 @@ func getFile(d *godave.Dave, work int, head []byte) <-chan []byte {
 						case d.Send <- &dave.Msg{Op: dave.Op_GETDAT, Work: head}:
 							break send
 						}
-
 					}
 				}
 			case <-time.After(5 * time.Second):
@@ -186,28 +197,28 @@ func (app *App) rateLimitMiddleware(next http.Handler) http.Handler {
 }
 
 func (app *App) getRateLimiter(r *http.Request) *rate.Limiter {
-	app.clientMu.Lock()
-	defer app.clientMu.Unlock()
+	app.clientmu.Lock()
+	defer app.clientmu.Unlock()
 	key := r.Method + r.RemoteAddr
 	v, exists := app.clients[key]
 	if !exists {
 		lim := rate.NewLimiter(rate.Every(app.ratelim), app.burst)
-		app.clients[key] = &client{limiter: lim}
+		app.clients[key] = &client{lim: lim}
 		return lim
 	}
-	v.lastSeen = time.Now()
-	return v.limiter
+	v.seen = time.Now()
+	return v.lim
 }
 
 func (a *App) cleanupClients() {
 	for {
 		<-time.After(10 * time.Second)
-		a.clientMu.Lock()
+		a.clientmu.Lock()
 		for key, client := range a.clients {
-			if time.Since(client.lastSeen) > 10*time.Second {
+			if time.Since(client.seen) > 10*time.Second {
 				delete(a.clients, key)
 			}
 		}
-		a.clientMu.Unlock()
+		a.clientmu.Unlock()
 	}
 }
