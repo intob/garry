@@ -19,7 +19,7 @@ func main() {
 	lap := flag.String("l", ":80", "<LAP> listen address:port")
 	bap := flag.String("b", "", "<BAP> bootstrap address:port")
 	bfile := flag.String("bf", "", "<BFILE> bootstrap file of address:port\\n")
-	work := flag.Int("w", 3, "<WORK_MIN> minimum work to store DAT")
+	work := flag.Int("w", 3, "<WORK> minimum work to store DAT")
 	flag.Parse()
 	d := runDave(*network, *lap, *bfile, *bap, *work)
 	go http.RunApp(&http.Cfg{
