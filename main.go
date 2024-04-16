@@ -16,7 +16,7 @@ import (
 
 func main() {
 	network := flag.String("network", "udp", "<udp|udp6|udp4>")
-	lap := flag.String("l", ":80", "<LAP> listen address:port")
+	lap := flag.String("l", ":0", "<LAP> listen address:port")
 	applap := flag.String("applap", ":8080", "<APPLAP> app listen address:port")
 	bap := flag.String("b", "", "<BAP> bootstrap address:port")
 	bfile := flag.String("bf", "", "<BFILE> bootstrap file of address:port\\n")
