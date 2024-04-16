@@ -57,7 +57,8 @@ func RunApp(cfg *Cfg) {
 		clients: make(map[string]*client),
 	}
 	go app.cleanupClients()
-	app.serve()
+	go app.serve()
+	<-make(chan struct{})
 }
 
 func (app *App) serve() {
@@ -99,7 +100,11 @@ func (app *App) handleRequest(w http.ResponseWriter, r *http.Request) {
 		for dat := range getFile(app.dave, app.work, head) {
 			result = append(dat, result...)
 		}
-		w.Write(result)
+		if len(result) > 0 {
+			w.Write(result)
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
 	}
 }
 
@@ -111,33 +116,38 @@ func getFile(d *godave.Dave, work int, head []byte) <-chan []byte {
 			Work: head,
 		}
 		var i int
-		for m := range d.Recv {
-			if m.Op == dave.Op_DAT && bytes.Equal(m.Work, head) {
-				check := godave.CheckWork(m)
-				if check < work {
-					fmt.Printf("invalid work: %v, require: %v", check, work)
-					close(out)
-				}
-				out <- m.Val
-				head = m.Prev
-				i++
-				fmt.Printf("GOT DAT %d PREV::%x\n", i, head)
-				if head == nil {
-					close(out)
-					return
-				}
-			send:
-				for {
-					select {
-					case d.Send <- &dave.Msg{
-						Op:   dave.Op_GETDAT,
-						Work: head,
-					}:
-						break send
-					case <-d.Recv:
+		for {
+			select {
+			case m := <-d.Recv:
+				if m.Op == dave.Op_DAT && bytes.Equal(m.Work, head) {
+					check := godave.CheckWork(m)
+					if check < work {
+						fmt.Printf("invalid work: %v, require: %v", check, work)
+						close(out)
+					}
+					out <- m.Val
+					head = m.Prev
+					i++
+					fmt.Printf("GOT DAT %d PREV::%x\n", i, head)
+					if head == nil {
+						close(out)
+						return
+					}
+				send:
+					for {
+						select {
+						case d.Send <- &dave.Msg{
+							Op:   dave.Op_GETDAT,
+							Work: head,
+						}:
+							break send
+						case <-d.Recv:
+						}
 					}
 				}
-
+			case <-time.After(500 * time.Millisecond):
+				close(out)
+				return
 			}
 		}
 	}()

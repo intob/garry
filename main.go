@@ -22,7 +22,7 @@ func main() {
 	work := flag.Int("w", 3, "<WORK> minimum work to store DAT")
 	flag.Parse()
 	d := runDave(*network, *lap, *bfile, *bap, *work)
-	go http.RunApp(&http.Cfg{
+	http.RunApp(&http.Cfg{
 		Dave:      d,
 		Work:      *work,
 		Version:   "1234",
@@ -30,7 +30,6 @@ func main() {
 		Ratelimit: 300 * time.Millisecond,
 		Burst:     10,
 	})
-	<-make(chan struct{})
 }
 
 func runDave(network, lap, bfile, bap string, work int) *godave.Dave {
