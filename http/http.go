@@ -139,16 +139,21 @@ func getFile(mu *sync.Mutex, d *godave.Dave, work int, head []byte) <-chan []byt
 				send:
 					for {
 						select {
-						case d.Send <- &dave.Msg{
-							Op:   dave.Op_GETDAT,
-							Work: head,
-						}:
-							break send
 						case <-d.Recv:
+						case d.Send <- &dave.Msg{Op: dave.Op_GETDAT, Work: head}:
+							break send
+						}
+					}
+				wait:
+					for {
+						select {
+						case <-d.Recv:
+						case d.Send <- nil:
+							break wait
 						}
 					}
 				}
-			case <-time.After(500 * time.Millisecond):
+			case <-time.After(time.Second):
 				close(out)
 				return
 			}
