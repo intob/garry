@@ -15,6 +15,7 @@ import (
 
 type App struct {
 	dave     *godave.Dave
+	davemu   sync.Mutex
 	work     int
 	ratelim  time.Duration
 	burst    int
@@ -97,7 +98,7 @@ func (app *App) handleRequest(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		result := make([]byte, 0)
-		for dat := range getFile(app.dave, app.work, head) {
+		for dat := range getFile(&app.davemu, app.dave, app.work, head) {
 			result = append(dat, result...)
 		}
 		if len(result) > 0 {
@@ -108,9 +109,11 @@ func (app *App) handleRequest(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getFile(d *godave.Dave, work int, head []byte) <-chan []byte {
+func getFile(mu *sync.Mutex, d *godave.Dave, work int, head []byte) <-chan []byte {
 	out := make(chan []byte)
 	go func() {
+		mu.Lock()
+		defer mu.Unlock()
 		d.Send <- &dave.Msg{
 			Op:   dave.Op_GETDAT,
 			Work: head,
