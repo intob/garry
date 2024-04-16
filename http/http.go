@@ -97,24 +97,38 @@ func (app *App) handleRequest(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "input must be of length 32 bytes", 400)
 			return
 		}
+		app.davemu.Lock()
+		defer app.davemu.Unlock()
 		result := make([]byte, 0)
-		for dat := range getFile(&app.davemu, app.dave, app.work, head) {
-			result = append(dat, result...)
-		}
-		if len(result) > 0 {
-			w.Write(result)
-		} else {
-			w.WriteHeader(http.StatusNotFound)
+		fch := getFile(app.dave, app.work, head)
+		t := time.After(time.Second)
+		for {
+			select {
+			case dat, ok := <-fch:
+				result = append(dat, result...)
+				if !ok {
+					w.Write(result)
+					return
+				}
+			case <-t:
+				w.WriteHeader(http.StatusGatewayTimeout)
+				return
+			}
 		}
 	}
 }
 
-func getFile(mu *sync.Mutex, d *godave.Dave, work int, head []byte) <-chan []byte {
+func getFile(d *godave.Dave, work int, head []byte) <-chan []byte {
 	out := make(chan []byte)
 	go func() {
-		mu.Lock()
-		defer mu.Unlock()
-		d.Send <- &dave.Msg{Op: dave.Op_GETDAT, Work: head}
+	init:
+		for {
+			select {
+			case <-d.Recv:
+			case d.Send <- &dave.Msg{Op: dave.Op_GETDAT, Work: head}:
+				break init
+			}
+		}
 		var i int
 		for {
 			select {
@@ -124,6 +138,7 @@ func getFile(mu *sync.Mutex, d *godave.Dave, work int, head []byte) <-chan []byt
 					if check < work {
 						fmt.Printf("invalid work: %v, require: %v", check, work)
 						close(out)
+						return
 					}
 					out <- m.Val
 					head = m.Prev
@@ -140,19 +155,11 @@ func getFile(mu *sync.Mutex, d *godave.Dave, work int, head []byte) <-chan []byt
 						case d.Send <- &dave.Msg{Op: dave.Op_GETDAT, Work: head}:
 							break send
 						}
-					}
-				wait:
-					for {
-						select {
-						case <-d.Recv:
-						case d.Send <- nil:
-							break wait
-						}
+
 					}
 				}
-			case <-time.After(time.Second):
-				close(out)
-				return
+			case <-time.After(5 * time.Second):
+				d.Send <- &dave.Msg{Op: dave.Op_GETDAT, Work: head}
 			}
 		}
 	}()
@@ -184,9 +191,9 @@ func (app *App) getRateLimiter(r *http.Request) *rate.Limiter {
 	key := r.Method + r.RemoteAddr
 	v, exists := app.clients[key]
 	if !exists {
-		limiter := rate.NewLimiter(rate.Every(app.ratelim), app.burst)
-		app.clients[key] = &client{limiter, time.Now()}
-		return limiter
+		lim := rate.NewLimiter(rate.Every(app.ratelim), app.burst)
+		app.clients[key] = &client{limiter: lim}
+		return lim
 	}
 	v.lastSeen = time.Now()
 	return v.limiter

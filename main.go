@@ -28,8 +28,8 @@ func main() {
 		Work:      *work,
 		Version:   "1234",
 		Lap:       *applap,
-		Ratelimit: 300 * time.Millisecond,
-		Burst:     10,
+		Ratelimit: time.Second,
+		Burst:     1,
 	})
 }
 
