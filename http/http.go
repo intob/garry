@@ -30,13 +30,13 @@ type App struct {
 
 type Cfg struct {
 	Dave      *godave.Dave
-	Work      int `yaml:"work"`
+	Work      int
 	Version   string
-	Lap       string        `yaml:"lap"`
-	Ratelimit time.Duration `yaml:"ratelimit"`
-	Burst     int           `yaml:"burst"`
-	TLSCert   string        `yaml:"tlscert"`
-	TLSKey    string        `yaml:"tlskey"`
+	Lap       string
+	Ratelimit time.Duration
+	Burst     int
+	TLSCert   string
+	TLSKey    string
 }
 
 type client struct {
@@ -114,10 +114,7 @@ func getFile(mu *sync.Mutex, d *godave.Dave, work int, head []byte) <-chan []byt
 	go func() {
 		mu.Lock()
 		defer mu.Unlock()
-		d.Send <- &dave.Msg{
-			Op:   dave.Op_GETDAT,
-			Work: head,
-		}
+		d.Send <- &dave.Msg{Op: dave.Op_GETDAT, Work: head}
 		var i int
 		for {
 			select {
