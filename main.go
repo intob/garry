@@ -17,6 +17,7 @@ import (
 func main() {
 	network := flag.String("network", "udp", "<udp|udp6|udp4>")
 	lap := flag.String("l", ":80", "<LAP> listen address:port")
+	applap := flag.String("applap", ":8080", "<APPLAP> app listen address:port")
 	bap := flag.String("b", "", "<BAP> bootstrap address:port")
 	bfile := flag.String("bf", "", "<BFILE> bootstrap file of address:port\\n")
 	work := flag.Int("w", 3, "<WORK> minimum work to store DAT")
@@ -26,7 +27,7 @@ func main() {
 		Dave:      d,
 		Work:      *work,
 		Version:   "1234",
-		Lap:       *lap,
+		Lap:       *applap,
 		Ratelimit: 300 * time.Millisecond,
 		Burst:     10,
 	})
