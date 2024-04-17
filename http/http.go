@@ -130,7 +130,7 @@ func (app *App) handleRequest(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getFile(d *godave.Dave, minWork int, head []byte) <-chan *godave.Dat {
+func getFile(d *godave.Dave, minwork int, head []byte) <-chan *godave.Dat {
 	out := make(chan *godave.Dat)
 	go func() {
 	init:
@@ -145,13 +145,13 @@ func getFile(d *godave.Dave, minWork int, head []byte) <-chan *godave.Dat {
 		for {
 			select {
 			case m := <-d.Recv:
-				if m != nil && m.Op == dave.Op_DAT && bytes.Equal(m.Work, head) {
+				if m.Op == dave.Op_DAT && bytes.Equal(m.Work, head) {
 					head = m.Prev
 					i++
 					fmt.Printf("GOT DAT %d PREV %x\n", i, head)
 					check := godave.CheckWork(m)
-					if check < minWork {
-						fmt.Printf("invalid work: %v, require: %v", check, minWork)
+					if check < minwork {
+						fmt.Printf("invalid work: %v, require: %v", check, minwork)
 						close(out)
 						return
 					}
