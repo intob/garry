@@ -130,7 +130,7 @@ func (app *App) handleRequest(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getFile(d *godave.Dave, work int, head []byte) <-chan *godave.Dat {
+func getFile(d *godave.Dave, minWork int, head []byte) <-chan *godave.Dat {
 	out := make(chan *godave.Dat)
 	go func() {
 	init:
@@ -145,17 +145,17 @@ func getFile(d *godave.Dave, work int, head []byte) <-chan *godave.Dat {
 		for {
 			select {
 			case m := <-d.Recv:
-				if m.Op == dave.Op_DAT && bytes.Equal(m.Work, head) {
+				if m != nil && m.Op == dave.Op_DAT && bytes.Equal(m.Work, head) {
+					head = m.Prev
+					i++
+					fmt.Printf("GOT DAT %d PREV %x\n", i, head)
 					check := godave.CheckWork(m)
-					if check < work {
-						fmt.Printf("invalid work: %v, require: %v", check, work)
+					if check < minWork {
+						fmt.Printf("invalid work: %v, require: %v", check, minWork)
 						close(out)
 						return
 					}
 					out <- &godave.Dat{Prev: m.Prev, Val: m.Val, Tag: m.Tag, Nonce: m.Nonce}
-					head = m.Prev
-					i++
-					fmt.Printf("GOT DAT %d PREV::%x\n", i, head)
 					if head == nil {
 						close(out)
 						return
@@ -169,7 +169,7 @@ func getFile(d *godave.Dave, work int, head []byte) <-chan *godave.Dat {
 						}
 					}
 				}
-			case <-time.After(5 * time.Second):
+			case <-time.After(500 * time.Millisecond):
 				d.Send <- &dave.Msg{Op: dave.Op_GETDAT, Work: head}
 			}
 		}
@@ -187,8 +187,8 @@ func (app *App) corsMiddleware(next http.Handler) http.Handler {
 
 func (app *App) rateLimitMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		limiter := app.getRateLimiter(r)
-		if !limiter.Allow() {
+		lim := app.getRateLimiter(r)
+		if !lim.Allow() {
 			w.WriteHeader(http.StatusTooManyRequests)
 			return
 		}
