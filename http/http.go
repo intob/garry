@@ -2,6 +2,7 @@ package http
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"net/http"
@@ -10,12 +11,12 @@ import (
 
 	"github.com/intob/dave/dapi"
 	"github.com/intob/dave/godave"
+	"github.com/intob/dave/godave/dave"
 	"golang.org/x/time/rate"
 )
 
 type App struct {
 	dave     *godave.Dave
-	davemu   sync.Mutex
 	ratelim  time.Duration
 	burst    int
 	lap      string
@@ -54,7 +55,16 @@ func RunApp(cfg *Cfg) {
 	}
 	go app.cleanupClients()
 	go app.serve()
+	go app.store()
 	<-make(chan struct{})
+}
+
+func (app *App) store() {
+	for m := range app.dave.Recv {
+		if m.Op == dave.Op_DAT || m.Op == dave.Op_RAND {
+			app.cache[id(m.Work)] = &godave.Dat{Val: m.Val, Tag: m.Tag, Nonce: m.Nonce, Work: m.Work}
+		}
+	}
 }
 
 func (app *App) serve() {
@@ -78,37 +88,58 @@ func (app *App) serve() {
 }
 
 func (app *App) handleRequest(w http.ResponseWriter, r *http.Request) {
-	if r.Method == "OPTIONS" {
+	switch r.Method {
+	case "OPTIONS":
 		w.WriteHeader(http.StatusOK)
+	case "GET":
+		app.handleGet(w, r)
+	case "POST":
+		app.handlePost(w, r)
+	default:
+		w.WriteHeader(http.StatusBadRequest)
+	}
+}
+
+func (app *App) handlePost(w http.ResponseWriter, r *http.Request) {
+	jd := json.NewDecoder(r.Body)
+	dat := &godave.Dat{}
+	err := jd.Decode(dat)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if r.Method == "GET" {
-		work, err := hex.DecodeString(r.URL.Path[1:])
-		if err != nil {
-			http.Error(w, fmt.Sprintf("err decoding input: %v", err), 400)
-			return
-		}
-		if len(work) != 32 {
-			http.Error(w, "input must be of length 32 bytes", 400)
-			return
-		}
-		var dat *godave.Dat
-		var hit bool
-		dat, hit = app.cache[id(work)]
-		if !hit {
-			app.davemu.Lock()
-			defer app.davemu.Unlock()
-			dat, err = dapi.GetDat(app.dave, work, 2*time.Second)
-			if err != nil {
-				http.Error(w, err.Error(), 500)
-				return
-			}
-			app.cache[id(work)] = dat
-		}
-		w.Write(dat.Val)
-		w.Header().Set("Tag", string(dat.Tag))
-		w.Header().Set("Nonce", hex.EncodeToString(dat.Nonce))
+	check := godave.Check(dat.Val, dat.Tag, dat.Nonce, dat.Work)
+	if check < godave.MINWORK {
+		http.Error(w, fmt.Sprintf("invalid work: %d", check), http.StatusBadRequest)
+		return
 	}
+	app.cache[id(dat.Work)] = dat
+	err = dapi.SendM(app.dave, &dave.M{Op: dave.Op_SET, Val: dat.Val, Tag: dat.Tag, Nonce: dat.Nonce, Work: dat.Work}, 2*time.Second)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (app *App) handleGet(w http.ResponseWriter, r *http.Request) {
+	work, err := hex.DecodeString(r.URL.Path[1:])
+	if err != nil {
+		http.Error(w, fmt.Sprintf("err decoding input: %v", err), http.StatusBadRequest)
+		return
+	}
+	if len(work) != 32 {
+		http.Error(w, "input must be of length 32 bytes", http.StatusBadRequest)
+		return
+	}
+	var dat *godave.Dat
+	var hit bool
+	dat, hit = app.cache[id(work)]
+	if !hit {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	w.Write(dat.Val)
+	w.Header().Set("Tag", string(dat.Tag))
+	w.Header().Set("Nonce", hex.EncodeToString(dat.Nonce))
 }
 
 func (app *App) corsMiddleware(next http.Handler) http.Handler {

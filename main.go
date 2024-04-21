@@ -24,8 +24,8 @@ func main() {
 		Dave:      startDave(*lap, *bfile, *bap),
 		Version:   "1234",
 		Lap:       *applap,
-		Ratelimit: 250 * time.Millisecond,
-		Burst:     1,
+		Ratelimit: 100 * time.Millisecond,
+		Burst:     10,
 	})
 }
 
