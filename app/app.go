@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -16,29 +17,35 @@ import (
 )
 
 type Garry struct {
-	dave     *godave.Dave
-	ratelim  time.Duration
-	burst    int
-	tlsCert  string
-	tlsKey   string
-	clientmu sync.Mutex
-	clients  map[string]*client
-	cache    map[uint64]*godave.Dat
+	dave            *godave.Dave
+	ratelim         time.Duration
+	burst           int
+	tlsCert, tlsKey string
+	clientmu        sync.Mutex
+	clients         map[string]*client
+	cache           map[uint64]*godave.Dat
+	doc             []byte
+	fs              http.Handler
 }
 
 type Cfg struct {
-	Dave      *godave.Dave
-	Laddr     string
-	Ratelimit time.Duration
-	Burst     int
-	TagPrefix []byte
-	TLSCert   string
-	TLSKey    string
+	Laddr, TLSCert, TLSKey string
+	Dave                   *godave.Dave
+	Ratelimit              time.Duration
+	Burst                  int
+	TagPrefix, Doc         []byte
 }
 
 type client struct {
 	lim  *rate.Limiter
 	seen time.Time
+}
+
+type msg struct {
+	Val      string `json:"val"`
+	Tag      string `json:"tag"`
+	NonceHex string `json:"nonce"`
+	WorkHex  string `json:"work"`
 }
 
 func Run(cfg *Cfg) {
@@ -50,8 +57,10 @@ func Run(cfg *Cfg) {
 		tlsKey:  cfg.TLSKey,
 		clients: make(map[string]*client),
 		cache:   make(map[uint64]*godave.Dat),
+		doc:     cfg.Doc,
+		fs:      http.FileServer(http.Dir(".")),
 	}
-	go garry.cleanupClients()
+	go garry.cleanupClients(10 * time.Second)
 	go garry.serve(cfg.Laddr)
 	go garry.store()
 	<-make(chan struct{})
@@ -100,25 +109,41 @@ func (g *Garry) handleRequest(w http.ResponseWriter, r *http.Request) {
 
 func (g *Garry) handlePost(w http.ResponseWriter, r *http.Request) {
 	jd := json.NewDecoder(r.Body)
-	dat := &godave.Dat{}
-	err := jd.Decode(dat)
+	msg := &msg{}
+	err := jd.Decode(msg)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	check := godave.Check(dat.Val, dat.Tag, dat.Nonce, dat.Work)
+	valb := []byte(msg.Val)
+	tagb := []byte(msg.Tag)
+	nonce, err := hex.DecodeString(msg.NonceHex)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("err decoding input: %v", err), http.StatusBadRequest)
+		return
+	}
+	work, err := hex.DecodeString(msg.WorkHex)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("err decoding input: %v", err), http.StatusBadRequest)
+		return
+	}
+	check := godave.Check(valb, tagb, nonce, work)
 	if check < godave.MINWORK {
 		http.Error(w, fmt.Sprintf("invalid work: %d", check), http.StatusBadRequest)
 		return
 	}
-	g.cache[id(dat.Work)] = dat
-	err = dapi.SendM(g.dave, &dave.M{Op: dave.Op_SET, Val: dat.Val, Tag: dat.Tag, Nonce: dat.Nonce, Work: dat.Work}, 2*time.Second)
+	g.cache[id(work)] = &godave.Dat{Val: valb, Tag: tagb, Nonce: nonce, Work: work}
+	err = dapi.SendM(g.dave, &dave.M{Op: dave.Op_SET, Val: valb, Tag: tagb, Nonce: nonce, Work: work}, 2*time.Second)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
 func (g *Garry) handleGet(w http.ResponseWriter, r *http.Request) {
+	if strings.HasPrefix(r.URL.Path, "/client") {
+		g.fs.ServeHTTP(w, r)
+		return
+	}
 	work, err := hex.DecodeString(r.URL.Path[1:])
 	if err != nil {
 		http.Error(w, fmt.Sprintf("err decoding input: %v", err), http.StatusBadRequest)
@@ -135,9 +160,9 @@ func (g *Garry) handleGet(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
-	w.Write(dat.Val)
 	w.Header().Set("Tag", string(dat.Tag))
 	w.Header().Set("Nonce", hex.EncodeToString(dat.Nonce))
+	w.Write(dat.Val)
 }
 
 func (g *Garry) corsMiddleware(next http.Handler) http.Handler {
@@ -173,12 +198,12 @@ func (g *Garry) getRateLimiter(r *http.Request) *rate.Limiter {
 	return v.lim
 }
 
-func (g *Garry) cleanupClients() {
+func (g *Garry) cleanupClients(period time.Duration) {
 	for {
-		<-time.After(10 * time.Second)
+		<-time.After(period)
 		g.clientmu.Lock()
 		for key, client := range g.clients {
-			if time.Since(client.seen) > 10*time.Second {
+			if time.Since(client.seen) > period {
 				delete(g.clients, key)
 			}
 		}
