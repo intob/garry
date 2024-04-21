@@ -1,4 +1,4 @@
-module github.com/intob/daveg
+module github.com/intob/garry
 
 go 1.22.1
 

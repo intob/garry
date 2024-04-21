@@ -1,36 +1,33 @@
 package http
 
 import (
-	"bytes"
 	"encoding/hex"
 	"fmt"
+	"hash/fnv"
 	"net/http"
 	"sync"
 	"time"
 
+	"github.com/intob/dave/dapi"
 	"github.com/intob/dave/godave"
-	"github.com/intob/dave/godave/dave"
 	"golang.org/x/time/rate"
 )
 
 type App struct {
 	dave     *godave.Dave
 	davemu   sync.Mutex
-	work     int
 	ratelim  time.Duration
 	burst    int
 	lap      string
 	tlsCert  string
 	tlsKey   string
-	version  string
-	started  time.Time
 	clientmu sync.Mutex
 	clients  map[string]*client
+	cache    map[uint64]*godave.Dat
 }
 
 type Cfg struct {
 	Dave      *godave.Dave
-	Work      int
 	Version   string
 	Lap       string
 	Ratelimit time.Duration
@@ -47,15 +44,13 @@ type client struct {
 func RunApp(cfg *Cfg) {
 	app := &App{
 		dave:    cfg.Dave,
-		work:    cfg.Work,
 		ratelim: cfg.Ratelimit,
 		burst:   cfg.Burst,
 		lap:     cfg.Lap,
 		tlsCert: cfg.TLSCert,
 		tlsKey:  cfg.TLSKey,
-		started: time.Now(),
-		version: cfg.Version,
 		clients: make(map[string]*client),
+		cache:   make(map[uint64]*godave.Dat),
 	}
 	go app.cleanupClients()
 	go app.serve()
@@ -88,93 +83,32 @@ func (app *App) handleRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == "GET" {
-		head, err := hex.DecodeString(r.URL.Path[1:])
+		work, err := hex.DecodeString(r.URL.Path[1:])
 		if err != nil {
-			http.Error(w, fmt.Sprintf("err decoding head: %v", err), 400)
+			http.Error(w, fmt.Sprintf("err decoding input: %v", err), 400)
 			return
 		}
-		if len(head) != 32 {
+		if len(work) != 32 {
 			http.Error(w, "input must be of length 32 bytes", 400)
 			return
 		}
-		app.davemu.Lock()
-		defer app.davemu.Unlock()
-		result := make([]byte, 0)
-		datchan := getFile(app.dave, app.work, head)
-		t := time.After(10 * time.Second)
-		var tag []byte
-		for {
-			select {
-			case dat, ok := <-datchan:
-				if dat != nil {
-					result = append(dat.Val, result...)
-					if tag == nil && dat.Tag != nil {
-						tag = dat.Tag
-					}
-				} else if !ok {
-					if len(result) == 0 {
-						w.WriteHeader(404)
-						return
-					}
-					if tag != nil {
-						w.Header().Set("Content-Type", string(tag))
-					}
-					w.Write(result)
-					return
-				}
-			case <-t:
-				w.WriteHeader(http.StatusGatewayTimeout)
+		var dat *godave.Dat
+		var hit bool
+		dat, hit = app.cache[id(work)]
+		if !hit {
+			app.davemu.Lock()
+			defer app.davemu.Unlock()
+			dat, err = dapi.GetDat(app.dave, work, 2*time.Second)
+			if err != nil {
+				http.Error(w, err.Error(), 500)
 				return
 			}
+			app.cache[id(work)] = dat
 		}
+		w.Write(dat.Val)
+		w.Header().Set("Tag", string(dat.Tag))
+		w.Header().Set("Nonce", hex.EncodeToString(dat.Nonce))
 	}
-}
-
-func getFile(d *godave.Dave, minwork int, head []byte) <-chan *godave.Dat {
-	out := make(chan *godave.Dat)
-	go func() {
-	init:
-		for {
-			select {
-			case <-d.Recv:
-			case d.Send <- &dave.Msg{Op: dave.Op_GETDAT, Work: head}:
-				break init
-			}
-		}
-		var i int
-		for {
-			select {
-			case m := <-d.Recv:
-				if m.Op == dave.Op_DAT && bytes.Equal(m.Work, head) {
-					head = m.Prev
-					i++
-					fmt.Printf("GOT DAT %d PREV %x\n", i, head)
-					check := godave.CheckWork(m)
-					if check < minwork {
-						fmt.Printf("invalid work: %v, require: %v", check, minwork)
-						close(out)
-						return
-					}
-					out <- &godave.Dat{Prev: m.Prev, Val: m.Val, Tag: m.Tag, Nonce: m.Nonce}
-					if head == nil {
-						close(out)
-						return
-					}
-				send:
-					for {
-						select {
-						case <-d.Recv:
-						case d.Send <- &dave.Msg{Op: dave.Op_GETDAT, Work: head}:
-							break send
-						}
-					}
-				}
-			case <-time.After(500 * time.Millisecond):
-				d.Send <- &dave.Msg{Op: dave.Op_GETDAT, Work: head}
-			}
-		}
-	}()
-	return out
 }
 
 func (app *App) corsMiddleware(next http.Handler) http.Handler {
@@ -221,4 +155,10 @@ func (a *App) cleanupClients() {
 		}
 		a.clientmu.Unlock()
 	}
+}
+
+func id(v []byte) uint64 {
+	h := fnv.New64a()
+	h.Write(v)
+	return h.Sum64()
 }
