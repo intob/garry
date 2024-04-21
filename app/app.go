@@ -1,4 +1,4 @@
-package http
+package app
 
 import (
 	"encoding/hex"
@@ -15,11 +15,10 @@ import (
 	"golang.org/x/time/rate"
 )
 
-type App struct {
+type Garry struct {
 	dave     *godave.Dave
 	ratelim  time.Duration
 	burst    int
-	lap      string
 	tlsCert  string
 	tlsKey   string
 	clientmu sync.Mutex
@@ -29,10 +28,10 @@ type App struct {
 
 type Cfg struct {
 	Dave      *godave.Dave
-	Version   string
-	Lap       string
+	Laddr     string
 	Ratelimit time.Duration
 	Burst     int
+	TagPrefix []byte
 	TLSCert   string
 	TLSKey    string
 }
@@ -42,65 +41,64 @@ type client struct {
 	seen time.Time
 }
 
-func RunApp(cfg *Cfg) {
-	app := &App{
+func Run(cfg *Cfg) {
+	garry := &Garry{
 		dave:    cfg.Dave,
 		ratelim: cfg.Ratelimit,
 		burst:   cfg.Burst,
-		lap:     cfg.Lap,
 		tlsCert: cfg.TLSCert,
 		tlsKey:  cfg.TLSKey,
 		clients: make(map[string]*client),
 		cache:   make(map[uint64]*godave.Dat),
 	}
-	go app.cleanupClients()
-	go app.serve()
-	go app.store()
+	go garry.cleanupClients()
+	go garry.serve(cfg.Laddr)
+	go garry.store()
 	<-make(chan struct{})
 }
 
-func (app *App) store() {
-	for m := range app.dave.Recv {
+func (g *Garry) store() {
+	for m := range g.dave.Recv {
 		if m.Op == dave.Op_DAT || m.Op == dave.Op_RAND {
-			app.cache[id(m.Work)] = &godave.Dat{Val: m.Val, Tag: m.Tag, Nonce: m.Nonce, Work: m.Work}
+			g.cache[id(m.Work)] = &godave.Dat{Val: m.Val, Tag: m.Tag, Nonce: m.Nonce, Work: m.Work}
 		}
 	}
 }
 
-func (app *App) serve() {
+func (g *Garry) serve(laddr string) {
 	mux := http.NewServeMux()
-	mux.Handle("/", app.rateLimitMiddleware(
-		app.corsMiddleware(
-			http.HandlerFunc(app.handleRequest))))
-	server := &http.Server{Addr: app.lap, Handler: mux}
-	if app.tlsCert != "" {
-		fmt.Printf("app listening https on %s\n", app.lap)
-		err := server.ListenAndServeTLS(app.tlsCert, app.tlsKey)
+	mux.Handle("/", g.rateLimitMiddleware(
+		g.corsMiddleware(
+			http.HandlerFunc(g.handleRequest))))
+	server := &http.Server{Addr: laddr, Handler: mux}
+	if g.tlsCert != "" {
+		fmt.Printf("app listening https on %s\n", laddr)
+		err := server.ListenAndServeTLS(g.tlsCert, g.tlsKey)
 		if err != nil && err != http.ErrServerClosed {
 			panic(fmt.Sprintf("failed to listen https: %v\n", err))
 		}
 	}
-	fmt.Printf("listening http on %s\n", app.lap)
+	fmt.Printf("listening http on %s\n", laddr)
 	err := server.ListenAndServe()
 	if err != nil && err != http.ErrServerClosed {
 		panic(fmt.Sprintf("failed to listen http: %v\n", err))
 	}
 }
 
-func (app *App) handleRequest(w http.ResponseWriter, r *http.Request) {
+func (g *Garry) handleRequest(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "OPTIONS":
 		w.WriteHeader(http.StatusOK)
 	case "GET":
-		app.handleGet(w, r)
+		g.handleGet(w, r)
 	case "POST":
-		app.handlePost(w, r)
+		g.handlePost(w, r)
 	default:
 		w.WriteHeader(http.StatusBadRequest)
 	}
 }
 
-func (app *App) handlePost(w http.ResponseWriter, r *http.Request) {
+func (g *Garry) handlePost(w http.ResponseWriter, r *http.Request) {
 	jd := json.NewDecoder(r.Body)
 	dat := &godave.Dat{}
 	err := jd.Decode(dat)
@@ -113,14 +111,14 @@ func (app *App) handlePost(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("invalid work: %d", check), http.StatusBadRequest)
 		return
 	}
-	app.cache[id(dat.Work)] = dat
-	err = dapi.SendM(app.dave, &dave.M{Op: dave.Op_SET, Val: dat.Val, Tag: dat.Tag, Nonce: dat.Nonce, Work: dat.Work}, 2*time.Second)
+	g.cache[id(dat.Work)] = dat
+	err = dapi.SendM(g.dave, &dave.M{Op: dave.Op_SET, Val: dat.Val, Tag: dat.Tag, Nonce: dat.Nonce, Work: dat.Work}, 2*time.Second)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
-func (app *App) handleGet(w http.ResponseWriter, r *http.Request) {
+func (g *Garry) handleGet(w http.ResponseWriter, r *http.Request) {
 	work, err := hex.DecodeString(r.URL.Path[1:])
 	if err != nil {
 		http.Error(w, fmt.Sprintf("err decoding input: %v", err), http.StatusBadRequest)
@@ -132,7 +130,7 @@ func (app *App) handleGet(w http.ResponseWriter, r *http.Request) {
 	}
 	var dat *godave.Dat
 	var hit bool
-	dat, hit = app.cache[id(work)]
+	dat, hit = g.cache[id(work)]
 	if !hit {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
@@ -142,7 +140,7 @@ func (app *App) handleGet(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Nonce", hex.EncodeToString(dat.Nonce))
 }
 
-func (app *App) corsMiddleware(next http.Handler) http.Handler {
+func (g *Garry) corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET")
@@ -150,9 +148,9 @@ func (app *App) corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func (app *App) rateLimitMiddleware(next http.Handler) http.Handler {
+func (g *Garry) rateLimitMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		lim := app.getRateLimiter(r)
+		lim := g.getRateLimiter(r)
 		if !lim.Allow() {
 			w.WriteHeader(http.StatusTooManyRequests)
 			return
@@ -161,30 +159,30 @@ func (app *App) rateLimitMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func (app *App) getRateLimiter(r *http.Request) *rate.Limiter {
-	app.clientmu.Lock()
-	defer app.clientmu.Unlock()
+func (g *Garry) getRateLimiter(r *http.Request) *rate.Limiter {
+	g.clientmu.Lock()
+	defer g.clientmu.Unlock()
 	key := r.Method + r.RemoteAddr
-	v, exists := app.clients[key]
+	v, exists := g.clients[key]
 	if !exists {
-		lim := rate.NewLimiter(rate.Every(app.ratelim), app.burst)
-		app.clients[key] = &client{lim: lim}
+		lim := rate.NewLimiter(rate.Every(g.ratelim), g.burst)
+		g.clients[key] = &client{lim: lim}
 		return lim
 	}
 	v.seen = time.Now()
 	return v.lim
 }
 
-func (a *App) cleanupClients() {
+func (g *Garry) cleanupClients() {
 	for {
 		<-time.After(10 * time.Second)
-		a.clientmu.Lock()
-		for key, client := range a.clients {
+		g.clientmu.Lock()
+		for key, client := range g.clients {
 			if time.Since(client.seen) > 10*time.Second {
-				delete(a.clients, key)
+				delete(g.clients, key)
 			}
 		}
-		a.clientmu.Unlock()
+		g.clientmu.Unlock()
 	}
 }
 

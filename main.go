@@ -11,19 +11,18 @@ import (
 	"time"
 
 	"github.com/intob/dave/godave"
-	"github.com/intob/garry/http"
+	"github.com/intob/garry/app"
 )
 
 func main() {
-	lap := flag.String("l", "[::]:0", "<LAP> listen address:port")
+	daveLaddr := flag.String("ld", "[::]:0", "<DAVE_LADDR> dave listen address:port")
 	bap := flag.String("b", "", "<BAP> bootstrap address:port")
 	bfile := flag.String("bf", "", "<BFILE> bootstrap file of address:port\\n")
-	applap := flag.String("applap", "[::]:8080", "<APPLAP> app listen address:port")
+	garryLaddr := flag.String("la", "[::]:8080", "<GARRY_LADDR> garry listen address:port")
 	flag.Parse()
-	http.RunApp(&http.Cfg{
-		Dave:      startDave(*lap, *bfile, *bap),
-		Version:   "1234",
-		Lap:       *applap,
+	app.Run(&app.Cfg{
+		Dave:      startDave(*daveLaddr, *bfile, *bap),
+		Laddr:     *garryLaddr,
 		Ratelimit: 100 * time.Millisecond,
 		Burst:     10,
 	})
