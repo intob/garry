@@ -6,6 +6,8 @@
             font-family: monospace;
             font-size: 17px;
             word-wrap: break-word;
+            background-color: #000;
+            color: #fff;
         }
         form {
             display: flex;
@@ -17,8 +19,16 @@
             align-items: center;
             gap: 5px;
         }
-        input {
+        input,button {
             flex-grow: 1;
+            border: 1px solid #555;
+            padding: 5px;
+        }
+        input:hover, button:hover {
+            border: 1px solid #fff;
+        }
+        button {
+            background-color: green;
         }
     </style>
 </head>
@@ -27,7 +37,7 @@
     <form>
         <label>
             <span>Gateway</span>
-            <input name="gateway" placeholder="gateway" value="http://localhost:8080"/>
+            <input type="url" name="gateway" placeholder="gateway"/>
         </label>
         <label>
             <span>Value</span>
@@ -39,10 +49,10 @@
         </label>
         <label>
             <span>Difficulty</span>
-            <input name="difficulty" placeholder="difficulty" value="3"/>
+            <input type="number" name="difficulty" placeholder="difficulty" value="2"/>
         </label>
         <button type="submit">Send</button>
-        <input readonly name="work" placeholder="work"/>
+        <input readonly name="work" placeholder="work" style="user-select:all"/>
         <a id="work" href="#" target="_blank"></a>
     </form>
 </body>
