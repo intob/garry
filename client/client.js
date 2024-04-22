@@ -1,13 +1,14 @@
 const form = document.querySelector("form")
+const button = form.querySelector("button[type=\"submit\"]")
 const gatewayInput = form.querySelector("input[name=\"gateway\"]")
 gatewayInput.value = window.location.origin
 form.onsubmit = async e => {
     e.preventDefault()
+    button.setAttribute("disabled","")
     const gateway = gatewayInput.value
     const val = form.querySelector("input[name=\"val\"]").value
     const tag = form.querySelector("input[name=\"tag\"]").value
     const difficulty = form.querySelector("input[name=\"difficulty\"]").value
-    const button = form.querySelector("button[type=\"submit\"]")
     const msg = await work({val, tag}, difficulty, button)
     const output = form.querySelector("input[name=\"work\"]")
     output.value = bytesToHex(msg.work)
@@ -15,6 +16,7 @@ form.onsubmit = async e => {
     button.textContent = "Sending..."
     const resp = await fetch(gateway, { method: "POST", body: JSON.stringify(body)})
     button.textContent = "Send"
+    button.removeAttribute("disabled")
     if (resp.status !== 200) {
         output.value = await resp.text()
         return
