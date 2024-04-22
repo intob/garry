@@ -11,14 +11,9 @@ form.onsubmit = async e => {
     const link = form.querySelector("a#work")
     link.href = `/${bytesToHex(msg.work)}`
     link.textContent = bytesToHex(msg.work)
-    await fetch(gateway, {
-        method: "POST",
-        body: JSON.stringify({
-            val, tag,
-            nonce: bytesToHex(msg.nonce),
-            work: bytesToHex(msg.work)
-        })
-    })
+    const body = { val, tag, nonce: bytesToHex(msg.nonce), work: bytesToHex(msg.work) }
+    button.textContent = "Sending..."
+    await fetch(gateway, { method: "POST", body: JSON.stringify(body)})
     button.textContent = "Send"
 }
 
