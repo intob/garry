@@ -4,10 +4,27 @@
 </head>
 <body>
     <form>
-        <input name="gateway" placeholder="gateway" value="http://localhost:8080"/>
-        <input name="val" placeholder="val"/>
-        <input name="tag" placeholder="tag"/>
-        <button type="submit">Send</submit>
+        <label>
+            <span>Gateway</span>
+            <input name="gateway" placeholder="gateway" value="http://localhost:8080"/>
+        </label>
+        <label>
+            <span>Val</span>
+            <input name="val" placeholder="val"/>
+        </label>
+        <label>
+            <span>Tag</span>
+            <input name="tag" placeholder="tag"/>
+        </label>
+        <label>
+            <span>Difficulty</span>
+            <input name="difficulty" placeholder="difficulty" value="3"/>
+        </label>
+        <button type="submit">Send</button>
+        <label>
+            <span>Work</span>
+            <input name="work" placeholder="work" readonly/>
+        </label>
     </form>
 </body>
 <script src="client.js"></script>

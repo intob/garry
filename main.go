@@ -19,16 +19,17 @@ func main() {
 	bap := flag.String("b", "", "<BAP> bootstrap address:port")
 	bfile := flag.String("bf", "", "<BFILE> bootstrap file of address:port\\n")
 	garryLaddr := flag.String("la", "[::]:8080", "<GARRY_LADDR> garry listen address:port")
+	verbose := flag.Bool("v", false, "verbose logging")
 	flag.Parse()
 	app.Run(&app.Cfg{
-		Dave:      startDave(*daveLaddr, *bfile, *bap),
+		Dave:      startDave(*daveLaddr, *bfile, *bap, *verbose),
 		Laddr:     *garryLaddr,
 		Ratelimit: 100 * time.Millisecond,
 		Burst:     10,
 	})
 }
 
-func startDave(lap, bfile, bap string) *godave.Dave {
+func startDave(lap, bfile, bap string, verbose bool) *godave.Dave {
 	bootstraps := make([]netip.AddrPort, 0)
 	if bap != "" {
 		if strings.HasPrefix(bap, ":") {
@@ -43,12 +44,21 @@ func startDave(lap, bfile, bap string) *godave.Dave {
 	if bfile != "" {
 		bootstraps = append(bootstraps, readBaps(bfile)...)
 	}
-
+	var log *os.File
+	if verbose {
+		log = os.Stderr
+	} else {
+		var err error
+		log, err = os.Open(os.DevNull)
+		if err != nil {
+			exit(1, "failed to open %q: %v", os.DevNull, err)
+		}
+	}
 	laddr, err := net.ResolveUDPAddr("udp", lap)
 	if err != nil {
 		exit(1, "failed to resolve UDP address: %v", err)
 	}
-	d, err := godave.NewDave(&godave.Cfg{Listen: laddr, Bootstraps: bootstraps, Log: os.Stderr})
+	d, err := godave.NewDave(&godave.Cfg{Listen: laddr, Bootstraps: bootstraps, Log: log})
 	if err != nil {
 		exit(1, "failed to make dave: %v", err)
 	}
