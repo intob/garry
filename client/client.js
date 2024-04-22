@@ -5,9 +5,12 @@ form.onsubmit = async e => {
     const val = form.querySelector("input[name=\"val\"]").value
     const tag = form.querySelector("input[name=\"tag\"]").value
     const difficulty = form.querySelector("input[name=\"difficulty\"]").value
-    const msg = await work({val, tag}, difficulty)
-    console.log(msg)
+    const button = form.querySelector("button[type=\"submit\"]")
+    const msg = await work({val, tag}, difficulty, button)
     form.querySelector("input[name=\"work\"]").value = bytesToHex(msg.work)
+    const link = form.querySelector("a#work")
+    link.href = `/${bytesToHex(msg.work)}`
+    link.textContent = bytesToHex(msg.work)
     await fetch(gateway, {
         method: "POST",
         body: JSON.stringify({
@@ -16,9 +19,10 @@ form.onsubmit = async e => {
             work: bytesToHex(msg.work)
         })
     })
+    button.textContent = "Send"
 }
 
-async function work(msg, difficulty) {
+async function work(msg, difficulty, button) {
     const encoder = new TextEncoder()
     const valBytes = encoder.encode(msg.val)
     const tagBytes = encoder.encode(msg.tag)
@@ -28,7 +32,11 @@ async function work(msg, difficulty) {
     const nonceBytes = new Uint8Array(32)
     const input = new Uint8Array(load.length + 32)
     input.set(load)
+    let i = 0
     while (true) {
+        if (++i % 1000 == 0) {
+            button.textContent = i
+        }
         crypto.getRandomValues(msg.nonce)
         nonceBytes.set(msg.nonce)
         input.set(msg.nonce, load.length)

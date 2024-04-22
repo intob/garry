@@ -1,6 +1,25 @@
 <html>
 <head>
     <title>Garry Client</title>
+    <style>
+        * {
+            font-family: monospace;
+            font-size: 17px;
+        }
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        input {
+            flex-grow: 1;
+        }
+    </style>
 </head>
 <body>
     <form>
@@ -21,10 +40,8 @@
             <input name="difficulty" placeholder="difficulty" value="3"/>
         </label>
         <button type="submit">Send</button>
-        <label>
-            <span>Work</span>
-            <input name="work" placeholder="work" readonly/>
-        </label>
+        <input name="work" placeholder="work" readonly/>
+        <a id="work" href="#" target="_blank"></a>
     </form>
 </body>
 <script src="client.js"></script>
