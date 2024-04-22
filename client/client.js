@@ -7,14 +7,19 @@ form.onsubmit = async e => {
     const difficulty = form.querySelector("input[name=\"difficulty\"]").value
     const button = form.querySelector("button[type=\"submit\"]")
     const msg = await work({val, tag}, difficulty, button)
-    form.querySelector("input[name=\"work\"]").value = bytesToHex(msg.work)
+    const output = form.querySelector("input[name=\"work\"]")
+    output.value = bytesToHex(msg.work)
+    const body = { val, tag, nonce: bytesToHex(msg.nonce), work: bytesToHex(msg.work) }
+    button.textContent = "Sending..."
+    const resp = await fetch(gateway, { method: "POST", body: JSON.stringify(body)})
+    if (resp.status !== 200) {
+        output.value = await resp.text()
+        return
+    }
+    button.textContent = "Send"
     const link = form.querySelector("a#work")
     link.href = `/${bytesToHex(msg.work)}`
     link.textContent = bytesToHex(msg.work)
-    const body = { val, tag, nonce: bytesToHex(msg.nonce), work: bytesToHex(msg.work) }
-    button.textContent = "Sending..."
-    await fetch(gateway, { method: "POST", body: JSON.stringify(body)})
-    button.textContent = "Send"
 }
 
 async function work(msg, difficulty, button) {
