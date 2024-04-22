@@ -1,6 +1,6 @@
 <html>
 <head>
-    <title>Garry Client</title>
+    <title>Write to dave network</title>
     <style>
         * {
             font-family: monospace;
@@ -23,13 +23,14 @@
     </style>
 </head>
 <body>
+    <h1>Write to dave network</h1>
     <form>
         <label>
             <span>Gateway</span>
             <input name="gateway" placeholder="gateway" value="http://localhost:8080"/>
         </label>
         <label>
-            <span>Val</span>
+            <span>Value</span>
             <input name="val" placeholder="val"/>
         </label>
         <label>
@@ -41,7 +42,7 @@
             <input name="difficulty" placeholder="difficulty" value="3"/>
         </label>
         <button type="submit">Send</button>
-        <input name="work" placeholder="work" readonly/>
+        <input readonly name="work" placeholder="work"/>
         <a id="work" href="#" target="_blank"></a>
     </form>
 </body>
