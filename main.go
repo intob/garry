@@ -19,18 +19,19 @@ func main() {
 	bap := flag.String("b", "", "<BAP> bootstrap address:port")
 	bfile := flag.String("bf", "", "<BFILE> bootstrap file of address:port\\n")
 	garryLaddr := flag.String("la", "[::]:8080", "<GARRY_LADDR> garry listen address:port")
-	size := flag.Int("s", 1000000, "<SIZE> number of dats to store")
+	fcap := flag.Uint("fc", 1000000, "<FCAP> size of cuckoo filter")
+	dcap := flag.Uint("dc", 1000000, "<DCAP> number of dats to store")
 	verbose := flag.Bool("v", false, "verbose logging")
 	flag.Parse()
 	app.Run(&app.Cfg{
-		Dave:      startDave(*daveLaddr, *bfile, *bap, *size, *verbose),
+		Dave:      startDave(*daveLaddr, *bfile, *bap, *fcap, *dcap, *verbose),
 		Laddr:     *garryLaddr,
 		Ratelimit: 100 * time.Millisecond,
 		Burst:     10,
 	})
 }
 
-func startDave(lap, bfile, bap string, size int, verbose bool) *godave.Dave {
+func startDave(lap, bfile, bap string, fcap, dcap uint, verbose bool) *godave.Dave {
 	bootstraps := make([]netip.AddrPort, 0)
 	if bap != "" {
 		if strings.HasPrefix(bap, ":") {
@@ -47,7 +48,7 @@ func startDave(lap, bfile, bap string, size int, verbose bool) *godave.Dave {
 	}
 	var log *os.File
 	if verbose {
-		log = os.Stderr
+		log = os.Stdout
 	} else {
 		var err error
 		log, err = os.Open(os.DevNull)
@@ -59,7 +60,12 @@ func startDave(lap, bfile, bap string, size int, verbose bool) *godave.Dave {
 	if err != nil {
 		exit(1, "failed to resolve UDP address: %v", err)
 	}
-	d, err := godave.NewDave(&godave.Cfg{Listen: laddr, Bootstraps: bootstraps, Size: size, Log: log})
+	d, err := godave.NewDave(&godave.Cfg{
+		Listen:     laddr,
+		Bootstraps: bootstraps,
+		FilterCap:  fcap,
+		DatCap:     dcap,
+		Log:        bufio.NewWriter(log)})
 	if err != nil {
 		exit(1, "failed to make dave: %v", err)
 	}
