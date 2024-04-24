@@ -25,7 +25,6 @@ type Garry struct {
 	clients         map[string]*client
 	cache           map[uint64]*godave.Dat
 	cachemu         sync.Mutex
-	doc             []byte
 	fs              http.Handler
 }
 
@@ -34,7 +33,7 @@ type Cfg struct {
 	Dave                   *godave.Dave
 	Ratelimit              time.Duration
 	Burst, Cap             uint
-	TagPrefix, Doc         []byte
+	TagPrefix              []byte
 }
 
 type client struct {
@@ -58,7 +57,6 @@ func Run(cfg *Cfg) {
 		tlsKey:  cfg.TLSKey,
 		clients: make(map[string]*client),
 		cache:   make(map[uint64]*godave.Dat),
-		doc:     cfg.Doc,
 		fs:      http.FileServer(http.Dir(".")),
 	}
 	go garry.cleanupClients(10 * time.Second)
