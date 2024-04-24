@@ -35,7 +35,7 @@
         }
     </style>
 </head>
-<body>
+<body> 
     <h1>Write to dave network</h1>
     <form>
         <label>
@@ -47,15 +47,18 @@
             <input name="val" placeholder="val"/>
         </label>
         <label>
-            <span>Tag</span>
-            <input name="tag" placeholder="tag"/>
-        </label>
-        <label>
             <span>Difficulty</span>
             <input type="number" name="difficulty" placeholder="difficulty" value="2"/>
         </label>
         <button type="submit">Send</button>
-        <input readonly name="work" style="user-select:all"/>
+        <label>
+            <span>Value hex</span>
+            <input readonly name="hexout"/>
+        </label>
+        <label>
+            <span>Work</span>
+            <input readonly name="work" style="user-select:all"/>
+        </label>
         <a id="work" href="#" target="_blank"></a>
     </form>
 </body>

@@ -1,18 +1,21 @@
 const form = document.querySelector("form")
 const button = form.querySelector("button[type=\"submit\"]")
 const gatewayInput = form.querySelector("input[name=\"gateway\"]")
+const output = form.querySelector("input[name=\"work\"]")
+const hexout = form.querySelector("input[name=\"hexout\"]")
 gatewayInput.value = window.location.origin
 form.onsubmit = async e => {
     e.preventDefault()
     button.setAttribute("disabled","")
     const gateway = gatewayInput.value
     const val = form.querySelector("input[name=\"val\"]").value
-    const tag = form.querySelector("input[name=\"tag\"]").value
+    const encoder = new TextEncoder()
+    const valBytes = encoder.encode(val)
+    hexout.value = bytesToHex(valBytes)
     const difficulty = form.querySelector("input[name=\"difficulty\"]").value
-    const msg = await work({val, tag}, difficulty, button)
-    const output = form.querySelector("input[name=\"work\"]")
-    output.value = bytesToHex(msg.work)
-    const body = { val, tag, nonce: bytesToHex(msg.nonce), work: bytesToHex(msg.work) }
+    const {workhash,nonce} = await work(valBytes, difficulty, button)
+    output.value = bytesToHex(workhash)
+    const body = { val, noncehex: bytesToHex(nonce), workhex: bytesToHex(workhash) }
     button.textContent = "Sending..."
     const resp = await fetch(gateway, { method: "POST", body: JSON.stringify(body)})
     button.textContent = "Send"
@@ -22,17 +25,14 @@ form.onsubmit = async e => {
         return
     }
     const link = form.querySelector("a#work")
-    link.href = `/${bytesToHex(msg.work)}`
-    link.textContent = bytesToHex(msg.work)
+    link.href = `/${bytesToHex(workhash)}`
+    link.textContent = bytesToHex(workhash)
 }
 
-async function work(msg, difficulty, button) {
-    const encoder = new TextEncoder()
-    const valBytes = encoder.encode(msg.val)
-    const tagBytes = encoder.encode(msg.tag)
-    const hash = await crypto.subtle.digest("SHA-256", concat(valBytes, tagBytes))
+async function work(valBytes, difficulty, button) {
+    const hash = await crypto.subtle.digest("SHA-256", valBytes)
     const load = new Uint8Array(hash)
-    msg.nonce = new Uint8Array(32)
+    const nonce = new Uint8Array(32)
     const nonceBytes = new Uint8Array(32)
     const input = new Uint8Array(load.length + 32)
     input.set(load)
@@ -41,13 +41,13 @@ async function work(msg, difficulty, button) {
         if (++i % 1000 == 0) {
             button.textContent = i
         }
-        crypto.getRandomValues(msg.nonce)
-        nonceBytes.set(msg.nonce)
-        input.set(msg.nonce, load.length)
+        crypto.getRandomValues(nonce)
+        nonceBytes.set(nonce)
+        input.set(nonce, load.length)
         const hashBuffer = await crypto.subtle.digest("SHA-256", input)
-        msg.work = new Uint8Array(hashBuffer)
-        if (isDone(msg.work, difficulty)) {
-            return msg
+        const workhash = new Uint8Array(hashBuffer)
+        if (isDone(workhash, difficulty)) {
+            return {workhash, nonce}
         } 
     }
 }

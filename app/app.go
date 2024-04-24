@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -24,7 +25,7 @@ type Garry struct {
 	clientmu        sync.Mutex
 	clients         map[string]*client
 	cache           map[uint64]*godave.Dat
-	cachemu         sync.Mutex
+	cachemu         sync.RWMutex
 	fs              http.Handler
 }
 
@@ -33,7 +34,6 @@ type Cfg struct {
 	Dave                   *godave.Dave
 	Ratelimit              time.Duration
 	Burst, Cap             uint
-	TagPrefix              []byte
 }
 
 type client struct {
@@ -42,10 +42,10 @@ type client struct {
 }
 
 type msg struct {
-	Val      string `json:"val"`
-	Tag      string `json:"tag"`
-	NonceHex string `json:"nonce"`
-	WorkHex  string `json:"work"`
+	Val   string `json:"val"`
+	Nonce string `json:"nonce"`
+	Work  string `json:"work"`
+	Added int64  `json:"added"`
 }
 
 func Run(cfg *Cfg) {
@@ -70,7 +70,7 @@ func (g *Garry) store() {
 	for m := range g.dave.Recv {
 		if m.Op == dave.Op_DAT {
 			g.cachemu.Lock()
-			g.cache[id(m.Work)] = &godave.Dat{Val: m.Val, Nonce: m.Nonce, Work: m.Work}
+			g.cache[id(m.Work)] = &godave.Dat{Val: m.Val, Nonce: m.Nonce, Work: m.Work, Added: time.Now()}
 			g.cachemu.Unlock()
 		}
 	}
@@ -145,24 +145,25 @@ func (g *Garry) handlePost(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	valb := []byte(msg.Val)
-	nonce, err := hex.DecodeString(msg.NonceHex)
+	nonce, err := hex.DecodeString(msg.Nonce)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("err decoding input: %v", err), http.StatusBadRequest)
 		return
 	}
-	work, err := hex.DecodeString(msg.WorkHex)
+	work, err := hex.DecodeString(msg.Work)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("err decoding input: %v", err), http.StatusBadRequest)
 		return
 	}
-	check := godave.Check(valb, nonce, work)
+	check := godave.Check([]byte(msg.Val), nonce, work)
 	if check < godave.MINWORK {
 		http.Error(w, fmt.Sprintf("invalid work: %d", check), http.StatusBadRequest)
 		return
 	}
-	g.cache[id(work)] = &godave.Dat{Val: valb, Nonce: nonce, Work: work}
-	err = dapi.SendM(g.dave, &dave.M{Op: dave.Op_SET, Val: valb, Nonce: nonce, Work: work}, 2*time.Second)
+	g.cachemu.Lock()
+	g.cache[id(work)] = &godave.Dat{Val: []byte(msg.Val), Nonce: nonce, Work: work, Added: time.Now()}
+	g.cachemu.Unlock()
+	err = dapi.SendM(g.dave, &dave.M{Op: dave.Op_SET, Val: []byte(msg.Val), Nonce: nonce, Work: work}, time.Second)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -171,6 +172,10 @@ func (g *Garry) handlePost(w http.ResponseWriter, r *http.Request) {
 func (g *Garry) handleGet(w http.ResponseWriter, r *http.Request) {
 	if strings.HasPrefix(r.URL.Path, "/client") {
 		g.fs.ServeHTTP(w, r)
+		return
+	}
+	if strings.HasPrefix(r.URL.Path, "/list/") {
+		g.handleGetList(w, r)
 		return
 	}
 	work, err := hex.DecodeString(r.URL.Path[1:])
@@ -184,13 +189,46 @@ func (g *Garry) handleGet(w http.ResponseWriter, r *http.Request) {
 	}
 	var dat *godave.Dat
 	var hit bool
+	g.cachemu.RLock()
 	dat, hit = g.cache[id(work)]
+	g.cachemu.RUnlock()
 	if !hit {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
 	w.Header().Set("Nonce", hex.EncodeToString(dat.Nonce))
 	w.Write(dat.Val)
+}
+
+func (g *Garry) handleGetList(w http.ResponseWriter, r *http.Request) {
+	qhex := r.URL.Path[len("/list/"):]
+	if len(qhex) == 0 {
+		http.Error(w, "specify hex-encoded byte prefix", http.StatusBadRequest)
+		return
+	}
+	qb, err := hex.DecodeString(qhex)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	a := make([]*msg, 0)
+	g.cachemu.RLock()
+	for _, d := range g.cache {
+		if bytes.HasPrefix(d.Val, qb) {
+			a = append(a, &msg{
+				Val:   string(d.Val),
+				Nonce: hex.EncodeToString(d.Nonce),
+				Work:  hex.EncodeToString(d.Work),
+				Added: d.Added.UnixMilli()})
+		}
+	}
+	g.cachemu.RUnlock()
+	rj, err := json.MarshalIndent(a, "", "  ")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Write(rj)
 }
 
 func (g *Garry) corsMiddleware(next http.Handler) http.Handler {
