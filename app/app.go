@@ -70,7 +70,7 @@ func (g *Garry) store() {
 	for m := range g.dave.Recv {
 		if m.Op == dave.Op_DAT {
 			g.cachemu.Lock()
-			g.cache[id(m.Work)] = &godave.Dat{Val: m.Val, Tag: m.Tag, Nonce: m.Nonce, Work: m.Work}
+			g.cache[id(m.Work)] = &godave.Dat{Val: m.Val, Nonce: m.Nonce, Work: m.Work}
 			g.cachemu.Unlock()
 		}
 	}
@@ -146,7 +146,6 @@ func (g *Garry) handlePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	valb := []byte(msg.Val)
-	tagb := []byte(msg.Tag)
 	nonce, err := hex.DecodeString(msg.NonceHex)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("err decoding input: %v", err), http.StatusBadRequest)
@@ -157,13 +156,13 @@ func (g *Garry) handlePost(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("err decoding input: %v", err), http.StatusBadRequest)
 		return
 	}
-	check := godave.Check(valb, tagb, nonce, work)
+	check := godave.Check(valb, nonce, work)
 	if check < godave.MINWORK {
 		http.Error(w, fmt.Sprintf("invalid work: %d", check), http.StatusBadRequest)
 		return
 	}
-	g.cache[id(work)] = &godave.Dat{Val: valb, Tag: tagb, Nonce: nonce, Work: work}
-	err = dapi.SendM(g.dave, &dave.M{Op: dave.Op_SET, Val: valb, Tag: tagb, Nonce: nonce, Work: work}, 2*time.Second)
+	g.cache[id(work)] = &godave.Dat{Val: valb, Nonce: nonce, Work: work}
+	err = dapi.SendM(g.dave, &dave.M{Op: dave.Op_SET, Val: valb, Nonce: nonce, Work: work}, 2*time.Second)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -190,7 +189,6 @@ func (g *Garry) handleGet(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
-	w.Header().Set("Tag", string(dat.Tag))
 	w.Header().Set("Nonce", hex.EncodeToString(dat.Nonce))
 	w.Write(dat.Val)
 }
