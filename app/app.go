@@ -176,6 +176,7 @@ func (g *Garry) handlePost(w http.ResponseWriter, r *http.Request) {
 
 func (g *Garry) handleGet(w http.ResponseWriter, r *http.Request) {
 	if strings.HasPrefix(r.URL.Path, "/client") {
+		w.Header().Set("Cache-Control", "max-age=300")
 		g.fs.ServeHTTP(w, r)
 		return
 	}

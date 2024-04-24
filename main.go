@@ -67,7 +67,7 @@ func makeDave(lap, bfile, bap string, fcap, dcap uint, lw io.Writer) *godave.Dav
 	}
 	laddr, err := net.ResolveUDPAddr("udp", lap)
 	if err != nil {
-		exit(1, "failed to resolve UDP address: %v", err)
+		exit(2, "failed to resolve UDP address: %v", err)
 	}
 	d, err := godave.NewDave(&godave.Cfg{
 		Listen:     laddr,
@@ -76,7 +76,7 @@ func makeDave(lap, bfile, bap string, fcap, dcap uint, lw io.Writer) *godave.Dav
 		DatCap:     dcap,
 		Log:        lw})
 	if err != nil {
-		exit(1, "failed to make dave: %v", err)
+		exit(3, "failed to make dave: %v", err)
 	}
 	return d
 }
@@ -85,7 +85,7 @@ func readBaps(fname string) []netip.AddrPort {
 	addrs := make([]netip.AddrPort, 0)
 	f, err := os.Open(fname)
 	if err != nil {
-		exit(1, "readBaps failed: %v", err)
+		exit(4, "readBaps failed: %v", err)
 	}
 	defer f.Close()
 	s := bufio.NewScanner(f)
