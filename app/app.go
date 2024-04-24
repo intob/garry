@@ -82,7 +82,6 @@ func (g *Garry) store() {
 func (g *Garry) prune(cap uint) {
 	ti := time.NewTicker(godave.EPOCH * godave.PRUNE)
 	for range ti.C {
-		fmt.Println("g-prune")
 		g.cachemu.Lock()
 		nc := make(map[uint64]*godave.Dat)
 		var minw float64
