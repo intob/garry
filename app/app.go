@@ -24,6 +24,7 @@ type Garry struct {
 	clientmu        sync.Mutex
 	clients         map[string]*client
 	cache           map[uint64]*godave.Dat
+	cachemu         sync.Mutex
 	doc             []byte
 	fs              http.Handler
 }
@@ -33,6 +34,7 @@ type Cfg struct {
 	Dave                   *godave.Dave
 	Ratelimit              time.Duration
 	Burst                  int
+	Cap                    uint
 	TagPrefix, Doc         []byte
 }
 
@@ -63,14 +65,46 @@ func Run(cfg *Cfg) {
 	go garry.cleanupClients(10 * time.Second)
 	go garry.serve(cfg.Laddr)
 	go garry.store()
+	go garry.prune(cfg.Cap)
 	<-make(chan struct{})
 }
 
 func (g *Garry) store() {
 	for m := range g.dave.Recv {
 		if m.Op == dave.Op_DAT || m.Op == dave.Op_RAND {
+			g.cachemu.Lock()
 			g.cache[id(m.Work)] = &godave.Dat{Val: m.Val, Tag: m.Tag, Nonce: m.Nonce, Work: m.Work}
+			g.cachemu.Unlock()
 		}
+	}
+}
+
+func (g *Garry) prune(cap uint) {
+	ti := time.NewTicker(godave.EPOCH * godave.PRUNE)
+	for range ti.C {
+		fmt.Println("g-prune")
+		g.cachemu.Lock()
+		nc := make(map[uint64]*godave.Dat)
+		var minw float64
+		var l uint64
+		for k, d := range g.cache {
+			w := godave.Weight(d.Work, d.Added)
+			if len(nc) >= int(cap)-1 {
+				if w > minw {
+					delete(nc, l)
+					nc[k] = d
+					l = k
+					minw = w
+				}
+			} else {
+				if w < minw {
+					minw = w
+				}
+				nc[k] = d
+			}
+		}
+		g.cache = nc
+		g.cachemu.Unlock()
 	}
 }
 

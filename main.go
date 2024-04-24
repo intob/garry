@@ -28,6 +28,7 @@ func main() {
 		Laddr:     *garryLaddr,
 		Ratelimit: 100 * time.Millisecond,
 		Burst:     10,
+		Cap:       *dcap,
 	})
 }
 
