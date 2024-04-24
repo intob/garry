@@ -4,12 +4,14 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"io"
 	"net"
 	"net/netip"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/intob/dave/dapi"
 	"github.com/intob/dave/godave"
 	"github.com/intob/garry/app"
 )
@@ -20,11 +22,27 @@ func main() {
 	bfile := flag.String("bf", "", "<BFILE> bootstrap file of address:port\\n")
 	garryLaddr := flag.String("la", "[::]:8080", "<GARRY_LADDR> garry listen address:port")
 	fcap := flag.Uint("fc", 1000000, "<FCAP> size of cuckoo filter")
-	dcap := flag.Uint("dc", 1000000, "<DCAP> number of dats to store")
+	dcap := flag.Uint("dc", 1000000, "<DCAP> number of DATs to store")
 	verbose := flag.Bool("v", false, "verbose logging")
+	skipwait := flag.Bool("s", false, "skip waiting for first DAT")
 	flag.Parse()
+	var lw *bufio.Writer
+	if *verbose {
+		lw = bufio.NewWriter(os.Stdout)
+	} else {
+		lf, err := os.Open(os.DevNull)
+		if err != nil {
+			exit(1, "failed to open %q: %v", os.DevNull, err)
+		}
+		lw = bufio.NewWriter(lf)
+	}
+	d := makeDave(*daveLaddr, *bfile, *bap, *fcap, *dcap, lw)
+	lw.Flush()
+	if !*skipwait {
+		dapi.WaitForFirstDat(d, os.Stdout)
+	}
 	app.Run(&app.Cfg{
-		Dave:      startDave(*daveLaddr, *bfile, *bap, *fcap, *dcap, *verbose),
+		Dave:      d,
 		Laddr:     *garryLaddr,
 		Ratelimit: 100 * time.Millisecond,
 		Burst:     10,
@@ -32,7 +50,7 @@ func main() {
 	})
 }
 
-func startDave(lap, bfile, bap string, fcap, dcap uint, verbose bool) *godave.Dave {
+func makeDave(lap, bfile, bap string, fcap, dcap uint, lw io.Writer) *godave.Dave {
 	bootstraps := make([]netip.AddrPort, 0)
 	if bap != "" {
 		if strings.HasPrefix(bap, ":") {
@@ -47,16 +65,6 @@ func startDave(lap, bfile, bap string, fcap, dcap uint, verbose bool) *godave.Da
 	if bfile != "" {
 		bootstraps = append(bootstraps, readBaps(bfile)...)
 	}
-	var log *os.File
-	if verbose {
-		log = os.Stdout
-	} else {
-		var err error
-		log, err = os.Open(os.DevNull)
-		if err != nil {
-			exit(1, "failed to open %q: %v", os.DevNull, err)
-		}
-	}
 	laddr, err := net.ResolveUDPAddr("udp", lap)
 	if err != nil {
 		exit(1, "failed to resolve UDP address: %v", err)
@@ -66,20 +74,9 @@ func startDave(lap, bfile, bap string, fcap, dcap uint, verbose bool) *godave.Da
 		Bootstraps: bootstraps,
 		FilterCap:  fcap,
 		DatCap:     dcap,
-		Log:        bufio.NewWriter(log)})
+		Log:        lw})
 	if err != nil {
 		exit(1, "failed to make dave: %v", err)
-	}
-
-	var n int
-	fmt.Printf("%v\nbootstrap\n", bootstraps)
-	for range d.Recv {
-		n++
-		fmt.Printf(".\033[0K")
-		if n >= 8 {
-			fmt.Print("\n\033[0K")
-			break
-		}
 	}
 	return d
 }
