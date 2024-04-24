@@ -69,9 +69,14 @@ func Run(cfg *Cfg) {
 func (g *Garry) store() {
 	for m := range g.dave.Recv {
 		if m.Op == dave.Op_DAT {
-			g.cachemu.Lock()
-			g.cache[id(m.Work)] = &godave.Dat{Val: m.Val, Nonce: m.Nonce, Work: m.Work, Added: time.Now()}
-			g.cachemu.Unlock()
+			g.cachemu.RLock()
+			_, ok := g.cache[id(m.Work)]
+			g.cachemu.RUnlock()
+			if !ok {
+				g.cachemu.Lock()
+				g.cache[id(m.Work)] = &godave.Dat{Val: m.Val, Nonce: m.Nonce, Work: m.Work, Added: time.Now()}
+				g.cachemu.Unlock()
+			}
 		}
 	}
 }
@@ -201,20 +206,11 @@ func (g *Garry) handleGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (g *Garry) handleGetList(w http.ResponseWriter, r *http.Request) {
-	qhex := r.URL.Path[len("/list/"):]
-	if len(qhex) == 0 {
-		http.Error(w, "specify hex-encoded byte prefix", http.StatusBadRequest)
-		return
-	}
-	qb, err := hex.DecodeString(qhex)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
+	q := []byte(r.URL.Path[len("/list/"):])
 	a := make([]*msg, 0)
 	g.cachemu.RLock()
 	for _, d := range g.cache {
-		if bytes.HasPrefix(d.Val, qb) {
+		if bytes.HasPrefix(d.Val, q) {
 			a = append(a, &msg{
 				Val:   string(d.Val),
 				Nonce: hex.EncodeToString(d.Nonce),

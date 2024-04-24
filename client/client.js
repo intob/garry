@@ -1,21 +1,21 @@
-const form = document.querySelector("form")
-const button = form.querySelector("button[type=\"submit\"]")
-const gatewayInput = form.querySelector("input[name=\"gateway\"]")
-const output = form.querySelector("input[name=\"work\"]")
-const hexout = form.querySelector("input[name=\"hexout\"]")
+const wform = document.getElementById("write")
+const lform = document.getElementById("list")
+const gatewayInput = document.querySelector("input[name=\"gateway\"]")
 gatewayInput.value = window.location.origin
-form.onsubmit = async e => {
+
+wform.onsubmit = async e => {
     e.preventDefault()
+    const button = wform.querySelector("button[type=\"submit\"]")
     button.setAttribute("disabled","")
     const gateway = gatewayInput.value
-    const val = form.querySelector("input[name=\"val\"]").value
+    const output = wform.querySelector("input[name=\"work\"]")
+    const val = wform.querySelector("input[name=\"val\"]").value
     const encoder = new TextEncoder()
     const valBytes = encoder.encode(val)
-    hexout.value = bytesToHex(valBytes)
-    const difficulty = form.querySelector("input[name=\"difficulty\"]").value
+    const difficulty = wform.querySelector("input[name=\"difficulty\"]").value
     const {workhash,nonce} = await work(valBytes, difficulty, button)
     output.value = bytesToHex(workhash)
-    const body = { val, noncehex: bytesToHex(nonce), workhex: bytesToHex(workhash) }
+    const body = { val, nonce: bytesToHex(nonce), work: bytesToHex(workhash) }
     button.textContent = "Sending..."
     const resp = await fetch(gateway, { method: "POST", body: JSON.stringify(body)})
     button.textContent = "Send"
@@ -24,9 +24,34 @@ form.onsubmit = async e => {
         output.value = await resp.text()
         return
     }
-    const link = form.querySelector("a#work")
+    const link = wform.querySelector("a#work")
     link.href = `/${bytesToHex(workhash)}`
     link.textContent = bytesToHex(workhash)
+}
+
+lform.onsubmit = async e => {
+    e.preventDefault()
+    const button = lform.querySelector("button[type=\"submit\"]")
+    button.setAttribute("disabled","")
+    const gateway = gatewayInput.value
+    const prefix = lform.querySelector("input[name=\"prefix\"]").value
+    let dats = await fetch(`${gateway}/list/${prefix}`)
+    const results = lform.querySelector("#results")
+    while (results.firstChild) {
+        results.removeChild(results.firstChild)
+    }
+    button.removeAttribute("disabled")
+    if (!dats.ok) {
+        r = document.createElement("div")
+        r.textContent = `Error: ${await dats.text()}`
+        results.appendChild(r)
+        return
+    }
+    for (let dat of (await dats.json()).sort((a,b) => b.added - a.added)) {
+        r = document.createElement("div")
+        r.textContent = dat.val
+        results.appendChild(r)
+    }
 }
 
 async function work(valBytes, difficulty, button) {
@@ -59,13 +84,6 @@ function isDone(work, difficulty) {
         }
     }
     return true
-}
-
-function concat(buffer1, buffer2) {
-    const result = new Uint8Array(buffer1.length + buffer2.length)
-    result.set(buffer1)
-    result.set(buffer2, buffer1.length)
-    return result
 }
 
 function bytesToHex(bytes) {

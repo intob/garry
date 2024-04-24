@@ -35,32 +35,41 @@
         }
     </style>
 </head>
-<body> 
-    <h1>Write to dave network</h1>
-    <form>
+<body>
+    <div>
         <label>
             <span>Gateway</span>
-            <input type="url" name="gateway" placeholder="gateway"/>
+            <input type="url" name="gateway" placeholder="https://dave.gateway"/>
         </label>
-        <label>
-            <span>Value</span>
-            <input name="val" placeholder="val"/>
-        </label>
-        <label>
-            <span>Difficulty</span>
-            <input type="number" name="difficulty" placeholder="difficulty" value="2"/>
-        </label>
-        <button type="submit">Send</button>
-        <label>
-            <span>Value hex</span>
-            <input readonly name="hexout"/>
-        </label>
-        <label>
-            <span>Work</span>
-            <input readonly name="work" style="user-select:all"/>
-        </label>
-        <a id="work" href="#" target="_blank"></a>
-    </form>
+        <h1>Write a DAT to dave network</h1>
+        <form id="write">
+            <label>
+                <span>Value</span>
+                <input name="val"/>
+            </label>
+            <label>
+                <span>Difficulty</span>
+                <input type="number" name="difficulty" placeholder="difficulty" value="2"/>
+            </label>
+            <button type="submit">Send</button>
+            <label>
+                <span>Work</span>
+                <input readonly name="work" style="user-select:all"/>
+            </label>
+            <a id="work" href="#" target="_blank"></a>
+        </form>
+    </div>
+    <div>
+        <h1>List DATs by value prefix</h1>
+        <form id="list">
+            <label>
+                <span>Prefix</span>
+                <input name="prefix"/>
+            </label>
+            <button type="submit">List</button>
+            <div id="results"></div>
+        </form>
+    </div>
 </body>
 <script src="client.js"></script>
 </html>
