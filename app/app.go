@@ -19,7 +19,7 @@ import (
 type Garry struct {
 	dave            *godave.Dave
 	ratelim         time.Duration
-	burst           int
+	burst           uint
 	tlsCert, tlsKey string
 	clientmu        sync.Mutex
 	clients         map[string]*client
@@ -33,8 +33,7 @@ type Cfg struct {
 	Laddr, TLSCert, TLSKey string
 	Dave                   *godave.Dave
 	Ratelimit              time.Duration
-	Burst                  int
-	Cap                    uint
+	Burst, Cap             uint
 	TagPrefix, Doc         []byte
 }
 
@@ -223,7 +222,7 @@ func (g *Garry) getRateLimiter(r *http.Request) *rate.Limiter {
 	key := r.Method + r.RemoteAddr
 	v, exists := g.clients[key]
 	if !exists {
-		lim := rate.NewLimiter(rate.Every(g.ratelim), g.burst)
+		lim := rate.NewLimiter(rate.Every(g.ratelim), int(g.burst))
 		g.clients[key] = &client{lim: lim}
 		return lim
 	}
