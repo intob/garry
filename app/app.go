@@ -68,7 +68,7 @@ func Run(cfg *Cfg) {
 
 func (g *Garry) store() {
 	for m := range g.dave.Recv {
-		if m.Op == dave.Op_DAT || m.Op == dave.Op_RAND {
+		if m.Op == dave.Op_DAT {
 			g.cachemu.Lock()
 			g.cache[id(m.Work)] = &godave.Dat{Val: m.Val, Tag: m.Tag, Nonce: m.Nonce, Work: m.Work}
 			g.cachemu.Unlock()
