@@ -45,7 +45,7 @@ type msg struct {
 	Val   string `json:"val"`
 	Nonce string `json:"nonce"`
 	Work  string `json:"work"`
-	Added int64  `json:"added"`
+	Time  int64  `json:"time"`
 }
 
 func Run(cfg *Cfg) {
@@ -74,7 +74,7 @@ func (g *Garry) store() {
 			g.cachemu.RUnlock()
 			if !ok {
 				g.cachemu.Lock()
-				g.cache[id(m.Work)] = &godave.Dat{Val: m.Val, Nonce: m.Nonce, Work: m.Work, Added: time.Now()}
+				g.cache[id(m.Work)] = &godave.Dat{Val: m.Val, Nonce: m.Nonce, Work: m.Work, Ti: godave.Btt(m.Time)}
 				g.cachemu.Unlock()
 			}
 		}
@@ -89,7 +89,7 @@ func (g *Garry) prune(cap uint) {
 		var minw float64
 		var l uint64
 		for k, d := range g.cache {
-			w := godave.Weight(d.Work, d.Added)
+			w := godave.Weight(d.Work, d.Ti)
 			if len(nc) >= int(cap)-1 {
 				if w > minw {
 					delete(nc, l)
@@ -160,15 +160,16 @@ func (g *Garry) handlePost(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("err decoding input: %v", err), http.StatusBadRequest)
 		return
 	}
-	check := godave.Check([]byte(msg.Val), nonce, work)
+	t := time.UnixMilli(msg.Time)
+	check := godave.Check([]byte(msg.Val), godave.Ttb(t), nonce, work)
 	if check < godave.MINWORK {
 		http.Error(w, fmt.Sprintf("invalid work: %d", check), http.StatusBadRequest)
 		return
 	}
 	g.cachemu.Lock()
-	g.cache[id(work)] = &godave.Dat{Val: []byte(msg.Val), Nonce: nonce, Work: work, Added: time.Now()}
+	g.cache[id(work)] = &godave.Dat{Val: []byte(msg.Val), Nonce: nonce, Work: work, Ti: t}
 	g.cachemu.Unlock()
-	err = dapi.SendM(g.dave, &dave.M{Op: dave.Op_SET, Val: []byte(msg.Val), Nonce: nonce, Work: work}, time.Second)
+	err = dapi.SendM(g.dave, &dave.M{Op: dave.Op_SET, Val: []byte(msg.Val), Time: godave.Ttb(t), Nonce: nonce, Work: work})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -216,7 +217,7 @@ func (g *Garry) handleGetList(w http.ResponseWriter, r *http.Request) {
 				Val:   string(d.Val),
 				Nonce: hex.EncodeToString(d.Nonce),
 				Work:  hex.EncodeToString(d.Work),
-				Added: d.Added.UnixMilli()})
+				Time:  d.Ti.UnixMilli()})
 		}
 	}
 	g.cachemu.RUnlock()

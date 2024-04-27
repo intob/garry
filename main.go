@@ -69,12 +69,18 @@ func makeDave(lap, bfile, bap string, fcap, dcap uint, lw io.Writer) *godave.Dav
 	if err != nil {
 		exit(2, "failed to resolve UDP address: %v", err)
 	}
+	lch := make(chan string, 1)
+	go func() {
+		for l := range lch {
+			lw.Write([]byte(l))
+		}
+	}()
 	d, err := godave.NewDave(&godave.Cfg{
 		Listen:     laddr,
 		Bootstraps: bootstraps,
 		FilterCap:  fcap,
 		DatCap:     dcap,
-		Log:        lw})
+		Log:        lch})
 	if err != nil {
 		exit(3, "failed to make dave: %v", err)
 	}

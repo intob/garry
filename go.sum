@@ -1,2 +1,4 @@
+github.com/intob/dave v0.0.4 h1:eB4BpcxazThu0Xtw4o7YlCcIv0G1KnV60ui8+XQ0QTo=
+github.com/intob/dave v0.0.4/go.mod h1:3uqzt01f3256b7pMP6zFm2GHQWNT4Kp6v/tXpQaUmAY=
 golang.org/x/time v0.5.0 h1:o7cqy6amK/52YcAKIPlM3a+Fpj35zvRj2TP+e1xFSfk=
 golang.org/x/time v0.5.0/go.mod h1:3BpzKBy/shNhVucY/MWOyx10tF3SFh9QdLuxbVysPQM=
