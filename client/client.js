@@ -13,9 +13,10 @@ wform.onsubmit = async e => {
     const encoder = new TextEncoder()
     const valBytes = encoder.encode(val)
     const difficulty = wform.querySelector("input[name=\"difficulty\"]").value
-    const {workhash,nonce} = await work(valBytes, difficulty, button)
+    const time = Date.now()
+    const {workhash,nonce} = await work(valBytes, time, difficulty, button)
     output.value = bytesToHex(workhash)
-    const body = { val, nonce: bytesToHex(nonce), work: bytesToHex(workhash) }
+    const body = { val, time, nonce: bytesToHex(nonce), work: bytesToHex(workhash) }
     button.textContent = "Sending..."
     const resp = await fetch(gateway, { method: "POST", body: JSON.stringify(body)})
     button.textContent = "Send"
@@ -54,13 +55,18 @@ lform.onsubmit = async e => {
     }
 }
 
-async function work(valBytes, difficulty, button) {
-    const hash = await crypto.subtle.digest("SHA-256", valBytes)
-    const load = new Uint8Array(hash)
+async function work(valBytes, time, difficulty, button) {
+    const timeBytes = new Uint8Array(8)
+    const dv = new DataView(timeBytes.buffer)
+    dv.setBigUint64(0, BigInt(time), false)
+    const load = new Uint8Array(valBytes.length + timeBytes.length)
+    load.set(valBytes)
+    load.set(timeBytes, valBytes.length)
+    const loadhash = new Uint8Array(await crypto.subtle.digest("SHA-256", load))
     const nonce = new Uint8Array(32)
     const nonceBytes = new Uint8Array(32)
-    const input = new Uint8Array(load.length + 32)
-    input.set(load)
+    const input = new Uint8Array(32 + 32)
+    input.set(loadhash)
     let i = 0
     while (true) {
         if (++i % 1000 == 0) {
@@ -68,16 +74,17 @@ async function work(valBytes, difficulty, button) {
         }
         crypto.getRandomValues(nonce)
         nonceBytes.set(nonce)
-        input.set(nonce, load.length)
+        input.set(nonce, loadhash.length)
         const hashBuffer = await crypto.subtle.digest("SHA-256", input)
         const workhash = new Uint8Array(hashBuffer)
-        if (isDone(workhash, difficulty)) {
-            return {workhash, nonce}
-        } 
+        if (done(workhash, difficulty)) {
+            return { workhash, nonce } 
+        }
     }
 }
 
-function isDone(work, difficulty) {
+
+function done(work, difficulty) {
     for (let i = 0; i < difficulty; i++) {
         if (work[i] !== 0) {
             return false
@@ -95,3 +102,4 @@ function bytesToHex(bytes) {
     }
     return hex.map(x => x.toString(16)).join("");
 }
+
