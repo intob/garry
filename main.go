@@ -17,12 +17,12 @@ import (
 )
 
 func main() {
-	daveLaddr := flag.String("ld", "[::]:0", "<DAVE_LADDR> dave listen address:port")
-	bap := flag.String("b", "", "<BAP> bootstrap address:port")
-	garryLaddr := flag.String("la", "[::]:8080", "<GARRY_LADDR> garry listen address:port")
-	fcap := flag.Uint("fc", 1000000, "<FCAP> size of cuckoo filter")
-	dcap := flag.Uint("dc", 1000000, "<DCAP> number of DATs to store")
-	verbose := flag.Bool("v", false, "verbose logging")
+	garryLaddr := flag.String("lg", "[::]:8080", "Garry listen address:port")
+	daveLaddr := flag.String("ld", "[::]:0", "Dave listen address:port")
+	bap := flag.String("b", "", "Dave bootstrap address:port")
+	fcap := flag.Uint("fc", 1000000, "Cuckoo filter capacity")
+	dcap := flag.Uint("dc", 1000000, "Dat in-memory store capacity")
+	verbose := flag.Bool("v", false, "Verbose logging")
 	flag.Parse()
 	var lw *bufio.Writer
 	if *verbose {
