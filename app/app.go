@@ -41,7 +41,7 @@ type client struct {
 	seen time.Time
 }
 
-type msg struct {
+type datjson struct {
 	Val   string `json:"val"`
 	Nonce string `json:"nonce"`
 	Work  string `json:"work"`
@@ -144,32 +144,32 @@ func (g *Garry) handleRequest(w http.ResponseWriter, r *http.Request) {
 
 func (g *Garry) handlePost(w http.ResponseWriter, r *http.Request) {
 	jd := json.NewDecoder(r.Body)
-	msg := &msg{}
-	err := jd.Decode(msg)
+	dj := &datjson{}
+	err := jd.Decode(dj)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	nonce, err := hex.DecodeString(msg.Nonce)
+	nonce, err := hex.DecodeString(dj.Nonce)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("err decoding input: %v", err), http.StatusBadRequest)
 		return
 	}
-	work, err := hex.DecodeString(msg.Work)
+	work, err := hex.DecodeString(dj.Work)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("err decoding input: %v", err), http.StatusBadRequest)
 		return
 	}
-	t := time.UnixMilli(msg.Time)
-	check := godave.Check([]byte(msg.Val), godave.Ttb(t), nonce, work)
+	t := time.UnixMilli(dj.Time)
+	check := godave.Check([]byte(dj.Val), godave.Ttb(t), nonce, work)
 	if check < 0 {
 		http.Error(w, fmt.Sprintf("invalid work: %d", check), http.StatusBadRequest)
 		return
 	}
 	g.cachemu.Lock()
-	g.cache[id(work)] = &godave.Dat{V: []byte(msg.Val), N: nonce, W: work, Ti: t}
+	g.cache[id(work)] = &godave.Dat{V: []byte(dj.Val), N: nonce, W: work, Ti: t}
 	g.cachemu.Unlock()
-	err = dapi.SendM(g.dave, &dave.M{Op: dave.Op_DAT, Val: []byte(msg.Val), Time: godave.Ttb(t), Nonce: nonce, Work: work})
+	err = dapi.SendM(g.dave, &dave.M{Op: dave.Op_DAT, Val: []byte(dj.Val), Time: godave.Ttb(t), Nonce: nonce, Work: work})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -209,11 +209,11 @@ func (g *Garry) handleGet(w http.ResponseWriter, r *http.Request) {
 
 func (g *Garry) handleGetList(w http.ResponseWriter, r *http.Request) {
 	q := []byte(r.URL.Path[len("/list/"):])
-	a := make([]*msg, 0)
+	a := make([]*datjson, 0)
 	g.cachemu.RLock()
 	for _, d := range g.cache {
 		if bytes.HasPrefix(d.V, q) {
-			a = append(a, &msg{
+			a = append(a, &datjson{
 				Val:   string(d.V),
 				Nonce: hex.EncodeToString(d.N),
 				Work:  hex.EncodeToString(d.W),
