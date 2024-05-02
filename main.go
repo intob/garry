@@ -18,6 +18,8 @@ import (
 
 func main() {
 	garryLaddr := flag.String("lg", "[::]:8080", "Garry listen address:port")
+	tlscert := flag.String("cert", "", "TLS certificate file")
+	tlskey := flag.String("key", "", "TLS key file")
 	daveLaddr := flag.String("ld", "[::]:0", "Dave listen address:port")
 	bap := flag.String("b", "", "Dave bootstrap address:port")
 	fcap := flag.Uint("fc", 1000000, "Cuckoo filter capacity")
@@ -43,6 +45,8 @@ func main() {
 		Ratelimit: 100 * time.Millisecond,
 		Burst:     10,
 		Cap:       *dcap,
+		TLSCert:   *tlscert,
+		TLSKey:    *tlskey,
 	})
 }
 
