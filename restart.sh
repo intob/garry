@@ -1,6 +1,6 @@
 git pull
-rm commit
-git rev-parse HEAD > commit
+rm client/commit
+git rev-parse HEAD > client/commit
 cp -f garry.service.conf /etc/systemd/system/garry.service
 /usr/local/go/bin/go build .
 systemctl daemon-reload

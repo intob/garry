@@ -22,6 +22,7 @@ type Garry struct {
 	ratelim         time.Duration
 	burst           uint
 	tlsCert, tlsKey string
+	commit          []byte
 	clientmu        sync.Mutex
 	clients         map[string]*client
 	cache           map[uint64]*godave.Dat
@@ -31,6 +32,7 @@ type Garry struct {
 
 type Cfg struct {
 	Laddr, TLSCert, TLSKey string
+	Commit                 []byte
 	Dave                   *godave.Dave
 	Ratelimit              time.Duration
 	Burst, Cap             uint
@@ -55,6 +57,7 @@ func Run(cfg *Cfg) {
 		burst:   cfg.Burst,
 		tlsCert: cfg.TLSCert,
 		tlsKey:  cfg.TLSKey,
+		commit:  cfg.Commit,
 		clients: make(map[string]*client),
 		cache:   make(map[uint64]*godave.Dat),
 		fs:      http.FileServer(http.Dir(".")),
