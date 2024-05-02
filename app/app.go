@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/intob/dave/dapi"
-	"github.com/intob/dave/godave"
-	"github.com/intob/dave/godave/dave"
+	"github.com/intob/dapi"
+	"github.com/intob/godave"
+	"github.com/intob/godave/dave"
 	"golang.org/x/time/rate"
 )
 

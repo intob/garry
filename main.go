@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/intob/dave/dapi"
-	"github.com/intob/dave/godave"
+	"github.com/intob/dapi"
 	"github.com/intob/garry/app"
+	"github.com/intob/godave"
 )
 
 func main() {
