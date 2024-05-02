@@ -74,7 +74,7 @@ func (g *Garry) store() {
 			g.cachemu.RUnlock()
 			if !ok {
 				g.cachemu.Lock()
-				g.cache[id(m.Work)] = &godave.Dat{Val: m.Val, Nonce: m.Nonce, Work: m.Work, Ti: godave.Btt(m.Time)}
+				g.cache[id(m.Work)] = &godave.Dat{V: m.Val, N: m.Nonce, W: m.Work, Ti: godave.Btt(m.Time)}
 				g.cachemu.Unlock()
 			}
 		}
@@ -89,7 +89,7 @@ func (g *Garry) prune(cap uint) {
 		var minw float64
 		var l uint64
 		for k, d := range g.cache {
-			w := godave.Weight(d.Work, d.Ti)
+			w := godave.Weight(d.W, d.Ti)
 			if len(nc) >= int(cap)-1 {
 				if w > minw {
 					delete(nc, l)
@@ -162,14 +162,14 @@ func (g *Garry) handlePost(w http.ResponseWriter, r *http.Request) {
 	}
 	t := time.UnixMilli(msg.Time)
 	check := godave.Check([]byte(msg.Val), godave.Ttb(t), nonce, work)
-	if check < godave.MINWORK {
+	if check < 0 {
 		http.Error(w, fmt.Sprintf("invalid work: %d", check), http.StatusBadRequest)
 		return
 	}
 	g.cachemu.Lock()
-	g.cache[id(work)] = &godave.Dat{Val: []byte(msg.Val), Nonce: nonce, Work: work, Ti: t}
+	g.cache[id(work)] = &godave.Dat{V: []byte(msg.Val), N: nonce, W: work, Ti: t}
 	g.cachemu.Unlock()
-	err = dapi.SendM(g.dave, &dave.M{Op: dave.Op_SET, Val: []byte(msg.Val), Time: godave.Ttb(t), Nonce: nonce, Work: work})
+	err = dapi.SendM(g.dave, &dave.M{Op: dave.Op_DAT, Val: []byte(msg.Val), Time: godave.Ttb(t), Nonce: nonce, Work: work})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -203,8 +203,8 @@ func (g *Garry) handleGet(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
-	w.Header().Set("Nonce", hex.EncodeToString(dat.Nonce))
-	w.Write(dat.Val)
+	w.Header().Set("Nonce", hex.EncodeToString(dat.N))
+	w.Write(dat.V)
 }
 
 func (g *Garry) handleGetList(w http.ResponseWriter, r *http.Request) {
@@ -212,11 +212,11 @@ func (g *Garry) handleGetList(w http.ResponseWriter, r *http.Request) {
 	a := make([]*msg, 0)
 	g.cachemu.RLock()
 	for _, d := range g.cache {
-		if bytes.HasPrefix(d.Val, q) {
+		if bytes.HasPrefix(d.V, q) {
 			a = append(a, &msg{
-				Val:   string(d.Val),
-				Nonce: hex.EncodeToString(d.Nonce),
-				Work:  hex.EncodeToString(d.Work),
+				Val:   string(d.V),
+				Nonce: hex.EncodeToString(d.N),
+				Work:  hex.EncodeToString(d.W),
 				Time:  d.Ti.UnixMilli()})
 		}
 	}
