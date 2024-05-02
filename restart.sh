@@ -1,7 +1,9 @@
 git pull
-sudo cp -f garry.service.conf /etc/systemd/system/garry.service
+rm commit
+git rev-parse HEAD > commit
+cp -f garry.service.conf /etc/systemd/system/garry.service
 /usr/local/go/bin/go build .
-sudo systemctl daemon-reload
-sudo systemctl enable garry.service
-sudo systemctl stop garry.service
-sudo systemctl start garry.service
+systemctl daemon-reload
+systemctl enable garry.service
+systemctl stop garry.service
+systemctl start garry.service
