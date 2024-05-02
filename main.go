@@ -21,7 +21,7 @@ func main() {
 	daveLaddr := flag.String("ld", "[::]:0", "Dave listen address:port")
 	bap := flag.String("b", "", "Dave bootstrap address:port")
 	fcap := flag.Uint("fc", 1000000, "Cuckoo filter capacity")
-	dcap := flag.Uint("dc", 1000000, "Dat in-memory store capacity")
+	dcap := flag.Uint("dc", 500000, "Dat in-memory store capacity")
 	verbose := flag.Bool("v", false, "Verbose logging")
 	flag.Parse()
 	var lw *bufio.Writer
