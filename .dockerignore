@@ -1,6 +1,0 @@
-# flyctl launch added from .gitignore
-**/.DS_Store
-**/.vscode/launch.json
-**/BOOTSTRAP
-**/__debug*
-fly.toml
