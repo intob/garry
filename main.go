@@ -44,8 +44,8 @@ func main() {
 	app.Run(&app.Cfg{
 		Dave:      d,
 		Laddr:     *garryLaddr,
-		Ratelimit: 3 * time.Second,
-		Burst:     4,
+		Ratelimit: 2 * time.Second,
+		Burst:     10,
 		Cap:       *dcap,
 		TLSCert:   *tlscert,
 		TLSKey:    *tlskey,
