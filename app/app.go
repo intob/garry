@@ -179,11 +179,10 @@ func (g *Garry) handlePost(w http.ResponseWriter, r *http.Request) {
 }
 
 func (g *Garry) handleGet(w http.ResponseWriter, r *http.Request) {
-	p := r.URL.Path
-	if p == "/" { // redirect to static
-		p += "static"
+	if r.URL.Path == "/" { // redirect to static
+		r.URL.Path += "static"
 	}
-	if strings.HasPrefix(p, "/static") {
+	if strings.HasPrefix(r.URL.Path, "/static") {
 		w.Header().Set("Cache-Control", "max-age=300")
 		g.fs.ServeHTTP(w, r)
 		return
