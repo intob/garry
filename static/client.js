@@ -14,9 +14,9 @@ wform.onsubmit = async e => {
     const valBytes = encoder.encode(val)
     const difficulty = wform.querySelector("input[name=\"difficulty\"]").value
     const time = Date.now()
-    const {workhash,nonce} = await work(valBytes, time, difficulty, button)
+    const {workhash,salt} = await work(valBytes, time, difficulty, button)
     output.value = bytesToHex(workhash)
-    const body = { val, time, nonce: bytesToHex(nonce), work: bytesToHex(workhash) }
+    const body = { val, time, salt: bytesToHex(salt), work: bytesToHex(workhash) }
     button.textContent = "Sending..."
     const resp = await fetch(gateway, { method: "POST", body: JSON.stringify(body)})
     button.textContent = "Send"
@@ -63,8 +63,8 @@ async function work(valBytes, time, difficulty, button) {
     load.set(valBytes)
     load.set(timeBytes, valBytes.length)
     const loadhash = new Uint8Array(await crypto.subtle.digest("SHA-256", load))
-    const nonce = new Uint8Array(32)
-    const nonceBytes = new Uint8Array(32)
+    const salt = new Uint8Array(32)
+    const saltBytes = new Uint8Array(32)
     const input = new Uint8Array(32 + 32)
     input.set(loadhash)
     let i = 0
@@ -72,13 +72,13 @@ async function work(valBytes, time, difficulty, button) {
         if (++i % 1000 == 0) {
             button.textContent = i
         }
-        crypto.getRandomValues(nonce)
-        nonceBytes.set(nonce)
-        input.set(nonce, loadhash.length)
+        crypto.getRandomValues(salt)
+        saltBytes.set(salt)
+        input.set(salt, loadhash.length)
         const hashBuffer = await crypto.subtle.digest("SHA-256", input)
         const workhash = new Uint8Array(hashBuffer)
         if (done(workhash, difficulty)) {
-            return { workhash, nonce } 
+            return { workhash, salt } 
         }
     }
 }

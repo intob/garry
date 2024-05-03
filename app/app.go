@@ -44,10 +44,10 @@ type client struct {
 }
 
 type datjson struct {
-	Val   string `json:"val"`
-	Nonce string `json:"nonce"`
-	Work  string `json:"work"`
-	Time  int64  `json:"time"`
+	Val  string `json:"val"`
+	Salt string `json:"salt"`
+	Work string `json:"work"`
+	Time int64  `json:"time"`
 }
 
 func Run(cfg *Cfg) {
@@ -77,7 +77,7 @@ func (g *Garry) store() {
 			g.cachemu.RUnlock()
 			if !ok {
 				g.cachemu.Lock()
-				g.cache[id(m.Work)] = &godave.Dat{V: m.Val, N: m.Nonce, W: m.Work, Ti: godave.Btt(m.Time)}
+				g.cache[id(m.Work)] = &godave.Dat{V: m.Val, S: m.Salt, W: m.Work, Ti: godave.Btt(m.Time)}
 				g.cachemu.Unlock()
 			}
 		}
@@ -89,20 +89,20 @@ func (g *Garry) prune(cap uint) {
 	for range ti.C {
 		g.cachemu.Lock()
 		nc := make(map[uint64]*godave.Dat)
-		var minw float64
+		var minmass float64
 		var l uint64
 		for k, d := range g.cache {
-			w := godave.Weight(d.W, d.Ti)
+			mass := godave.Mass(d.W, d.Ti)
 			if len(nc) >= int(cap)-1 {
-				if w > minw {
+				if mass > minmass {
 					delete(nc, l)
 					nc[k] = d
 					l = k
-					minw = w
+					minmass = mass
 				}
 			} else {
-				if w < minw {
-					minw = w
+				if mass < minmass {
+					minmass = mass
 				}
 				nc[k] = d
 			}
@@ -153,7 +153,7 @@ func (g *Garry) handlePost(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	nonce, err := hex.DecodeString(dj.Nonce)
+	salt, err := hex.DecodeString(dj.Salt)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("err decoding input: %v", err), http.StatusBadRequest)
 		return
@@ -164,15 +164,15 @@ func (g *Garry) handlePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	t := time.UnixMilli(dj.Time)
-	check := godave.Check([]byte(dj.Val), godave.Ttb(t), nonce, work)
+	check := godave.Check([]byte(dj.Val), godave.Ttb(t), salt, work)
 	if check < 0 {
 		http.Error(w, fmt.Sprintf("invalid work: %d", check), http.StatusBadRequest)
 		return
 	}
 	g.cachemu.Lock()
-	g.cache[id(work)] = &godave.Dat{V: []byte(dj.Val), N: nonce, W: work, Ti: t}
+	g.cache[id(work)] = &godave.Dat{V: []byte(dj.Val), S: salt, W: work, Ti: t}
 	g.cachemu.Unlock()
-	err = dapi.SendM(g.dave, &dave.M{Op: dave.Op_DAT, Val: []byte(dj.Val), Time: godave.Ttb(t), Nonce: nonce, Work: work})
+	err = dapi.SendM(g.dave, &dave.M{Op: dave.Op_DAT, Val: []byte(dj.Val), Time: godave.Ttb(t), Salt: salt, Work: work})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -209,7 +209,8 @@ func (g *Garry) handleGet(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
-	w.Header().Set("Nonce", hex.EncodeToString(dat.N))
+	w.Header().Set("Salt", hex.EncodeToString(dat.S))
+	w.Header().Set("Time", hex.EncodeToString(godave.Ttb(dat.Ti)))
 	w.Write(dat.V)
 }
 
@@ -220,10 +221,10 @@ func (g *Garry) handleGetList(w http.ResponseWriter, r *http.Request) {
 	for _, d := range g.cache {
 		if bytes.HasPrefix(d.V, q) {
 			a = append(a, &datjson{
-				Val:   string(d.V),
-				Nonce: hex.EncodeToString(d.N),
-				Work:  hex.EncodeToString(d.W),
-				Time:  d.Ti.UnixMilli()})
+				Val:  string(d.V),
+				Salt: hex.EncodeToString(d.S),
+				Work: hex.EncodeToString(d.W),
+				Time: d.Ti.UnixMilli()})
 		}
 	}
 	g.cachemu.RUnlock()
