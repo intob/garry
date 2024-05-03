@@ -26,7 +26,7 @@ func main() {
 	dcap := flag.Uint("dc", 500000, "Dat in-memory store capacity")
 	verbose := flag.Bool("v", false, "Verbose logging")
 	flag.Parse()
-	commit, _ := os.ReadFile("client/commit")
+	commit, _ := os.ReadFile("static/commit")
 	fmt.Println(string(commit))
 	var lw *bufio.Writer
 	if *verbose {
