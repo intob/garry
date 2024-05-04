@@ -73,11 +73,11 @@ func (g *Garry) store() {
 	for m := range g.dave.Recv {
 		if m.Op == dave.Op_DAT {
 			g.cachemu.RLock()
-			_, ok := g.cache[id(m.Work)]
+			_, ok := g.cache[id(m.W)]
 			g.cachemu.RUnlock()
 			if !ok {
 				g.cachemu.Lock()
-				g.cache[id(m.Work)] = &godave.Dat{V: m.Val, S: m.Salt, W: m.Work, Ti: godave.Btt(m.Time)}
+				g.cache[id(m.W)] = &godave.Dat{V: m.V, S: m.S, W: m.W, Ti: godave.Btt(m.T)}
 				g.cachemu.Unlock()
 			}
 		}
@@ -172,7 +172,7 @@ func (g *Garry) handlePost(w http.ResponseWriter, r *http.Request) {
 	g.cachemu.Lock()
 	g.cache[id(work)] = &godave.Dat{V: []byte(dj.Val), S: salt, W: work, Ti: t}
 	g.cachemu.Unlock()
-	err = dapi.SendM(g.dave, &dave.M{Op: dave.Op_DAT, Val: []byte(dj.Val), Time: godave.Ttb(t), Salt: salt, Work: work})
+	err = dapi.SendM(g.dave, &dave.M{Op: dave.Op_DAT, V: []byte(dj.Val), T: godave.Ttb(t), S: salt, W: work})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
