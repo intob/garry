@@ -22,7 +22,7 @@ wform.onsubmit = async e => {
     button.textContent = "Send"
     button.removeAttribute("disabled")
     if (resp.status !== 200) {
-        output.value = `${resp.statusText}: ${await resp.text()}`
+        output.value = `Error: ${resp.statusText}`
         return
     }
     const link = wform.querySelector("a#work")
@@ -44,7 +44,7 @@ lform.onsubmit = async e => {
     button.removeAttribute("disabled")
     if (!dats.ok) {
         r = document.createElement("div")
-        r.textContent = `Error: ${dats.statusText}: ${await dats.text()}`
+        r.textContent = `Error: ${dats.statusText}`
         results.appendChild(r)
         return
     }
