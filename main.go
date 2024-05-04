@@ -50,7 +50,7 @@ func main() {
 		TLSCert:   *tlscert,
 		TLSKey:    *tlskey,
 		Commit:    commit,
-		ListLimit: 10000,
+		ListLimit: 1000,
 	})
 }
 
