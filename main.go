@@ -44,12 +44,13 @@ func main() {
 	app.Run(&app.Cfg{
 		Dave:      d,
 		Laddr:     *garryLaddr,
-		Ratelimit: 2 * time.Second,
+		Ratelimit: time.Second,
 		Burst:     10,
 		Cap:       *dcap,
 		TLSCert:   *tlscert,
 		TLSKey:    *tlskey,
 		Commit:    commit,
+		ListLimit: 10000,
 	})
 }
 

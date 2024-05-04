@@ -28,6 +28,7 @@ type Garry struct {
 	cache           map[uint64]*godave.Dat
 	cachemu         sync.RWMutex
 	fs              http.Handler
+	listlim         uint
 }
 
 type Cfg struct {
@@ -36,6 +37,7 @@ type Cfg struct {
 	Dave                   *godave.Dave
 	Ratelimit              time.Duration
 	Burst, Cap             uint
+	ListLimit              uint
 }
 
 type client struct {
@@ -61,6 +63,7 @@ func Run(cfg *Cfg) {
 		clients: make(map[string]*client),
 		cache:   make(map[uint64]*godave.Dat),
 		fs:      http.FileServer(http.Dir(".")),
+		listlim: cfg.ListLimit,
 	}
 	go garry.cleanupClients(10 * time.Second)
 	go garry.serve(cfg.Laddr)
@@ -225,6 +228,9 @@ func (g *Garry) handleGetList(w http.ResponseWriter, r *http.Request) {
 				Salt: hex.EncodeToString(d.S),
 				Work: hex.EncodeToString(d.W),
 				Time: d.Ti.UnixMilli()})
+			if uint(len(a)) >= g.listlim {
+				break
+			}
 		}
 	}
 	g.cachemu.RUnlock()
