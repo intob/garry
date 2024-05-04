@@ -22,7 +22,7 @@ wform.onsubmit = async e => {
     button.textContent = "Send"
     button.removeAttribute("disabled")
     if (resp.status !== 200) {
-        output.value = await resp.text()
+        output.value = resp.statusText + await resp.text()
         return
     }
     const link = wform.querySelector("a#work")
