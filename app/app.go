@@ -175,7 +175,7 @@ func (g *Garry) handlePost(w http.ResponseWriter, r *http.Request) {
 	g.cachemu.Lock()
 	g.cache[id(work)] = &godave.Dat{V: []byte(dj.Val), S: salt, W: work, Ti: t}
 	g.cachemu.Unlock()
-	err = dapi.SendM(g.dave, &dave.M{Op: dave.Op_DAT, V: []byte(dj.Val), T: godave.Ttb(t), S: salt, W: work})
+	err = dapi.SendM(g.dave, &dave.M{Op: dave.Op_DAT, V: []byte(dj.Val), T: godave.Ttb(t), S: salt, W: work}, 16, time.Second)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
