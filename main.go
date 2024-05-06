@@ -21,7 +21,6 @@ func main() {
 	tlskey := flag.String("key", "", "TLS key file")
 	daveLaddr := flag.String("ld", "[::]:0", "Dave listen address:port")
 	bap := flag.String("b", "", "Dave bootstrap address:port")
-	fcap := flag.Uint("fc", 1000, "Cuckoo filter capacity")
 	dcap := flag.Uint("dc", 100000, "Dat in-memory store capacity")
 	verbose := flag.Bool("v", false, "Verbose logging")
 	flag.Parse()
@@ -37,7 +36,7 @@ func main() {
 		}
 		lw = bufio.NewWriter(lf)
 	}
-	d := makeDave(*daveLaddr, *bap, *fcap, *dcap, lw)
+	d := makeDave(*daveLaddr, *bap, *dcap, lw)
 	lw.Flush()
 	app.Run(&app.Cfg{
 		Dave:      d,
@@ -52,17 +51,17 @@ func main() {
 	})
 }
 
-func makeDave(lap, bap string, fcap, dcap uint, lw io.Writer) *godave.Dave {
-	bootstraps := make([]netip.AddrPort, 0)
-	if bap != "" {
-		if strings.HasPrefix(bap, ":") {
-			bap = "[::1]" + bap
+func makeDave(lap, edge string, dcap uint, lw io.Writer) *godave.Dave {
+	edges := make([]netip.AddrPort, 0)
+	if edge != "" {
+		if strings.HasPrefix(edge, ":") {
+			edge = "[::1]" + edge
 		}
-		addr, err := netip.ParseAddrPort(bap)
+		addr, err := netip.ParseAddrPort(edge)
 		if err != nil {
-			exit(1, "failed to parse -b=%q: %v", bap, err)
+			exit(1, "failed to parse -b=%q: %v", edge, err)
 		}
-		bootstraps = append(bootstraps, addr)
+		edges = append(edges, addr)
 	}
 	laddr, err := net.ResolveUDPAddr("udp", lap)
 	if err != nil {
@@ -75,11 +74,10 @@ func makeDave(lap, bap string, fcap, dcap uint, lw io.Writer) *godave.Dave {
 		}
 	}()
 	d, err := godave.NewDave(&godave.Cfg{
-		Listen:     laddr,
-		Bootstraps: bootstraps,
-		FilterCap:  fcap,
-		DatCap:     dcap,
-		Log:        lch})
+		Listen: laddr,
+		Edges:  edges,
+		DatCap: dcap,
+		Log:    lch})
 	if err != nil {
 		exit(3, "failed to make dave: %v", err)
 	}
