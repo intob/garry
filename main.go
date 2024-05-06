@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/intob/dapi"
 	"github.com/intob/garry/app"
 	"github.com/intob/godave"
 )
@@ -22,8 +21,8 @@ func main() {
 	tlskey := flag.String("key", "", "TLS key file")
 	daveLaddr := flag.String("ld", "[::]:0", "Dave listen address:port")
 	bap := flag.String("b", "", "Dave bootstrap address:port")
-	fcap := flag.Uint("fc", 1000000, "Cuckoo filter capacity")
-	dcap := flag.Uint("dc", 500000, "Dat in-memory store capacity")
+	fcap := flag.Uint("fc", 1000, "Cuckoo filter capacity")
+	dcap := flag.Uint("dc", 100000, "Dat in-memory store capacity")
 	verbose := flag.Bool("v", false, "Verbose logging")
 	flag.Parse()
 	commit, _ := os.ReadFile("static/commit")
@@ -40,7 +39,6 @@ func main() {
 	}
 	d := makeDave(*daveLaddr, *bap, *fcap, *dcap, lw)
 	lw.Flush()
-	dapi.WaitForFirstDat(d, os.Stdout)
 	app.Run(&app.Cfg{
 		Dave:      d,
 		Laddr:     *garryLaddr,
