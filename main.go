@@ -67,10 +67,10 @@ func makeDave(lap, edge string, dcap uint, lw io.Writer) *godave.Dave {
 	if err != nil {
 		exit(2, "failed to resolve UDP address: %v", err)
 	}
-	lch := make(chan string, 1)
+	lch := make(chan []byte, 10)
 	go func() {
 		for l := range lch {
-			lw.Write([]byte(l))
+			lw.Write(l)
 		}
 	}()
 	d, err := godave.NewDave(&godave.Cfg{
