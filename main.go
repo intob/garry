@@ -16,10 +16,10 @@ import (
 )
 
 func main() {
-	garryLaddr := flag.String("lg", "[::]:8080", "Garry listen address:port")
+	garryLaddr := flag.String("lg", "[::]:6102", "Garry listen address:port")
 	tlscert := flag.String("cert", "", "TLS certificate file")
 	tlskey := flag.String("key", "", "TLS key file")
-	daveLaddr := flag.String("ld", "[::]:0", "Dave listen address:port")
+	daveLaddr := flag.String("ld", "[::]:1618", "Dave listen address:port")
 	bap := flag.String("b", "", "Dave bootstrap address:port")
 	dcap := flag.Uint("dc", 100000, "Dat in-memory store capacity")
 	verbose := flag.Bool("v", false, "Verbose logging")
@@ -41,8 +41,8 @@ func main() {
 	app.Run(&app.Cfg{
 		Dave:      d,
 		Laddr:     *garryLaddr,
-		Ratelimit: time.Second,
-		Burst:     10,
+		Ratelimit: 300 * time.Millisecond,
+		Burst:     100,
 		Cap:       *dcap,
 		TLSCert:   *tlscert,
 		TLSKey:    *tlskey,
