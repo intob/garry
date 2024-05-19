@@ -108,7 +108,7 @@ const lookup = [8, 7, 6, 6, 5, 5, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4,
 
 function done(work, difficulty) {
   let clz = 0;
-  for (let i = 0; i < work.length; i++) {
+  for (let i = 0; i < 32; i++) {
       if (work[i] === 0) {
           clz += 8;
           if (clz >= difficulty) {
