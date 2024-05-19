@@ -71,8 +71,8 @@ function work(valBytes, time, difficulty, button) {
             const start = Date.now()
             do {
                 crypto.getRandomValues(salt)
-                input.set(loadhash)
-                input.set(salt, loadhash.length)
+                input.set(salt)
+                input.set(loadhash, 32)
                 const workhash = blake2b(input)
                 if (done(workhash, difficulty)) {
                     resolve({ workhash, salt })
@@ -88,23 +88,52 @@ function work(valBytes, time, difficulty, button) {
     })
 }
 
+// Lookup table to count leading zero bits in a byte
+const lookup = [8, 7, 6, 6, 5, 5, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4,
+                3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+                2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+                2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+
 function done(work, difficulty) {
-    for (let i = 0; i < difficulty; i++) {
-        if (work[i] !== 0) {
-            return false
-        }
-    }
-    return true
+  let clz = 0;
+  for (let i = 0; i < work.length; i++) {
+      if (work[i] === 0) {
+          clz += 8;
+          if (clz >= difficulty) {
+              return true;
+          }
+      } else {
+          clz += lookup[work[i]];
+          if (clz >= difficulty) {
+              return true;
+          }
+          break;
+      }
+  }
+  return false;
 }
 
+
 function bytesToHex(bytes) {
-    const hex = new Array(bytes.length * 2);
+    const hex = new Array(bytes.length * 2)
     for (let i = 0; i < bytes.length; i++) {
-        const value = bytes[i];
-        hex[i * 2] = value >>> 4;
-        hex[i * 2 + 1] = value & 0x0F;
+        const value = bytes[i]
+        hex[i * 2] = value >>> 4
+        hex[i * 2 + 1] = value & 0x0F
     }
-    return hex.map(x => x.toString(16)).join("");
+    return hex.map(x => x.toString(16)).join("")
 }
 
 // Blake2B in pure Javascript

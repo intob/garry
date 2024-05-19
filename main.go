@@ -16,12 +16,15 @@ import (
 )
 
 func main() {
-	garryLaddr := flag.String("lg", "[::]:6102", "Garry listen address:port")
+	garryLaddr := flag.String("lg", "[::]:6102", "Garry's listen address:port")
 	tlscert := flag.String("cert", "", "TLS certificate file")
 	tlskey := flag.String("key", "", "TLS key file")
-	daveLaddr := flag.String("ld", "[::]:1618", "Dave listen address:port")
-	bap := flag.String("b", "", "Dave bootstrap address:port")
-	dcap := flag.Uint("dc", 100000, "Dat in-memory store capacity")
+	daveLaddr := flag.String("ld", "[::]:1618", "Dave's listen address:port")
+	edge := flag.String("e", "", "Dave's bootstrap address:port")
+	dcap := flag.Int("dcap", 100000, "Dat in-memory store capacity")
+	epoch := flag.Duration("epoch", 20*time.Microsecond, "Dave epoch")
+	fcap := flag.Uint("fcap", 10000, "Dave's cuckoo filter capacity")
+	prune := flag.Uint("prune", 50000, "Dave's prune interval in epochs")
 	verbose := flag.Bool("v", false, "Verbose logging")
 	flag.Parse()
 	commit, _ := os.ReadFile("static/commit")
@@ -36,14 +39,14 @@ func main() {
 		}
 		lw = bufio.NewWriter(lf)
 	}
-	d := makeDave(*daveLaddr, *bap, *dcap, lw)
+	d := makeDave(*daveLaddr, *edge, uint(*dcap), *fcap, *prune, *epoch, lw)
 	lw.Flush()
 	app.Run(&app.Cfg{
 		Dave:      d,
 		Laddr:     *garryLaddr,
 		Ratelimit: 300 * time.Millisecond,
 		Burst:     100,
-		Cap:       *dcap,
+		Dcap:      *dcap,
 		TLSCert:   *tlscert,
 		TLSKey:    *tlskey,
 		Commit:    commit,
@@ -51,7 +54,7 @@ func main() {
 	})
 }
 
-func makeDave(lap, edge string, dcap uint, lw io.Writer) *godave.Dave {
+func makeDave(lap, edge string, dcap, fcap, prune uint, epoch time.Duration, lw io.Writer) *godave.Dave {
 	edges := make([]netip.AddrPort, 0)
 	if edge != "" {
 		if strings.HasPrefix(edge, ":") {
@@ -74,10 +77,13 @@ func makeDave(lap, edge string, dcap uint, lw io.Writer) *godave.Dave {
 		}
 	}()
 	d, err := godave.NewDave(&godave.Cfg{
-		Listen: laddr,
-		Edges:  edges,
-		DatCap: dcap,
-		Log:    lch})
+		LstnAddr:  laddr,
+		Edges:     edges,
+		DatCap:    dcap,
+		FilterCap: fcap,
+		Prune:     uint64(prune),
+		Epoch:     epoch,
+		Log:       lch})
 	if err != nil {
 		exit(3, "failed to make dave: %v", err)
 	}

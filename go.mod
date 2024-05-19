@@ -3,7 +3,7 @@ module github.com/intob/garry
 go 1.22.1
 
 require (
-	github.com/intob/godave v0.0.33
+	github.com/intob/godave v0.0.40
 	golang.org/x/time v0.5.0
 )
 
